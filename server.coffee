@@ -2,20 +2,6 @@ Db = require 'db'
 Plugin = require 'plugin'
 Event = require 'event'
 
-exports.getTitle = ->
-	Db.shared.get 'title'
-
-exports.onInstall = (config) !->
-	if config?
-		Db.shared.merge config
-		Event.create
-			unit: 'other'
-			text: "#{Plugin.userName(Plugin.ownerId())} added a list: #{config.title}"
-			new: ['all', -Plugin.ownerId()]
-
-exports.onConfig = (config) !->
-	Db.shared.merge config
-
 exports.client_add = (text) !->
 
 	item =
@@ -26,12 +12,10 @@ exports.client_add = (text) !->
 	maxId = Db.shared.incr('maxId')
 	Db.shared.set(maxId, item)
 
-	#name = Plugin.userName()
-
-	#Event.create
-	#	unit: 'msg'
-	#	text: "#{name}: #{text}"
-	#	read: [Plugin.userId()]
+	name = Plugin.userName()
+	Event.create
+		text: "#{name} added an item: #{text}"
+		sender: Plugin.userId()
 
 exports.client_edit = (itemId, values) !->
 	Db.shared.merge(itemId, values)
@@ -43,7 +27,6 @@ exports.client_remove = (id) !->
 	return if Plugin.userId() isnt Db.shared.get(id, 'by') and !Plugin.userIsAdmin()
 	Db.shared.remove(id)
 
-exports.client_complete = (id) !->
+exports.client_complete = (id, value) !->
 	if Db.shared.get(id)
-		Db.shared.set(id, 'completed', !Db.shared.get(id, 'completed'))
-
+		Db.shared.set id, 'completed', !!value

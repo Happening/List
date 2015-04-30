@@ -1,13 +1,14 @@
 Db = require 'db'
-Social = require 'social'
 Dom = require 'dom'
+Event = require 'event'
 Form = require 'form'
-Time = require 'time'
-Page = require 'page'
-Obs = require 'obs'
-Plugin = require 'plugin'
 Modal = require 'modal'
+Obs = require 'obs'
+Page = require 'page'
+Plugin = require 'plugin'
 Server = require 'server'
+Social = require 'social'
+Time = require 'time'
 Ui = require 'ui'
 {tr} = require 'i18n'
 
@@ -32,8 +33,12 @@ selectMember = (opts) !->
 			Dom.style color: (if v then 'inherit' else '#aaa')
 			Dom.text (if v then Plugin.userName(v) else tr("Nobody"))
 		if v
-			Ui.avatar Plugin.userAvatar(v), !->
-				Dom.style position: 'absolute', right: '6px', top: '50%', marginTop: '-20px'
+			Ui.avatar Plugin.userAvatar(v),
+				style:
+					position: 'absolute'
+					right: '6px'
+					top: '50%'
+					marginTop: '-20px'
 
 		Dom.onTap !->
 			Modal.show opts.selectTitle||tr("Select member"), !->
@@ -41,10 +46,9 @@ selectMember = (opts) !->
 				Dom.div !->
 					Dom.style
 						maxHeight: '40%'
-						overflow: 'auto'
-						_overflowScrolling: 'touch'
 						backgroundColor: '#eee'
 						margin: '-12px'
+					Dom.overflow()
 
 					Plugin.users.iterate (user) !->
 						Ui.item !->
@@ -77,9 +81,10 @@ selectMember = (opts) !->
 renderItem = (itemId) !->
 	Page.setTitle tr("Item")
 	item = Db.shared.ref(itemId)
+	Event.showStar item.get('text')
 	if Plugin.userId() is item.get('by') or Plugin.userIsAdmin()
 		Page.setActions
-			icon: Plugin.resourceUri('icon-trash-48.png')
+			icon: 'trash'
 			action: !->
 				Modal.confirm null, tr("Delete item?"), !->
 					Server.sync 'remove', itemId, !->
@@ -89,7 +94,8 @@ renderItem = (itemId) !->
 		Dom.style margin: '-8px -8px 0', backgroundColor: '#f8f8f8', borderBottom: '2px solid #ccc'
 
 		Form.setPageSubmit (values) !->
-			Server.call "edit", itemId, values
+			Server.sync "edit", itemId, values, !->
+				Db.shared.merge itemId, values
 			Page.back()
 
 		Form.box !->
@@ -144,9 +150,6 @@ renderList = !->
 	Ui.list !->
 		#Dom.style backgroundColor: '#fff', margin: '-4px -8px', borderBottom: '1px solid #ccc'
 
-		if title = Db.shared.get('title')
-			Dom.h2 title
-
 		# Top entry: adding an item
 		Ui.item !->
 			Dom.style paddingLeft: '10px'
@@ -197,13 +200,15 @@ renderList = !->
 
 				Dom.div !->
 					Dom.style Box: 'center middle'
+					item.get('completed')
+						# temp fix for problems arising from marking completed in edit item screen
 					Form.check
 						value: item.func('completed')
 						inScope: !->
 							Dom.style padding: '28px 32px 28px 14px'
 						onChange: (v) !->
 							Server.sync 'complete', item.key(), v, !->
-								item.set('completed', true)
+								item.set('completed', v)
 
 				Form.vSep()
 				
@@ -218,10 +223,8 @@ renderList = !->
 						fontSize: '21px'
 
 					Dom.div !->
-						Dom.style Flex: 1
-						Dom.text item.get('text')
-						if unread = Social.newComments(item.key())
-							Ui.unread unread, null, {marginLeft: '4px'}
+						Dom.style Flex: 1, color: (if Event.isNew(item.get('time')) then '#5b0' else 'inherit')
+						Dom.userText item.get('text')
 						if notes = item.get('notes')
 							Dom.div !->
 								Dom.style
@@ -232,10 +235,10 @@ renderList = !->
 									overflow: 'hidden'
 									textOverflow: 'ellipsis'
 								Dom.text notes
+					Dom.div !->
+						Event.renderBubble [item.key()]
 					if assigned = item.get('assigned')
-						Ui.avatar Plugin.userAvatar(assigned), !->
-							Dom.style
-								margin: '0 0 0 8px'
+						Ui.avatar Plugin.userAvatar(assigned), style: margin: '0 0 0 8px'
 
 					Dom.onTap !->
 						Page.nav item.key()
@@ -254,9 +257,3 @@ renderList = !->
 						textAlign: 'center'
 						color: '#bbb'
 					Dom.text tr("No items")
-
-exports.renderConfig = exports.renderSettings = !->
-	Form.input
-		name: 'title'
-		text: tr('Title')
-		value: Db.shared.func('title') if Db.shared

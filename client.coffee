@@ -2,6 +2,7 @@ Db = require 'db'
 Dom = require 'dom'
 Event = require 'event'
 Form = require 'form'
+Icon = require 'icon'
 Modal = require 'modal'
 Obs = require 'obs'
 Page = require 'page'
@@ -19,26 +20,113 @@ exports.render = !->
 	else
 		renderList()
 
+renderMenu = (key) !->
+	Modal.show tr("Options"), !->
+		Dom.style width: '80%'
+		Dom.div !->
+			Dom.style
+				maxHeight: '70%'
+				backgroundColor: '#eee'
+				margin: '-12px'
+			Dom.overflow()
+			Ui.list !->
+				Ui.item !->
+					if Db.shared.peek(key, 'completed')
+						Dom.span !->
+							Dom.style Flex: 1
+							Dom.text tr("Set to uncompleted")
+						Dom.span !->
+							Dom.style fontSize: '24px'
+							Dom.text "✗"
+						Dom.onTap !->
+							Server.sync 'complete', key, false, !->
+								Db.shared.set key, 'completed', false
+							Modal.remove()
+					else
+						Dom.span !->
+							Dom.style Flex: 1
+							Dom.text tr("Mark as Complete")
+						Dom.span !->
+							Dom.style fontSize: '30px'
+							Dom.text "✓"
+						Dom.onTap !->
+							Server.sync 'complete', key, true, !->
+								Db.shared.set key, 'completed', true
+							Modal.remove()
+				Ui.item !->
+					Dom.span !->
+						Dom.style Flex: 1
+						Dom.text tr("Add subitem")
+					Dom.span !->
+						Dom.style fontSize: '30px', paddingRight: '4px'
+						Dom.text "+"
+				if Plugin.userId() is Db.shared.peek(key, 'by') or Plugin.userIsAdmin()
+					Ui.item !->
+						Dom.span !->
+							Dom.style Flex: 1
+							Dom.text tr("Delete")
+						Icon.render
+							data: 'trash'
+							color: '#444'
+						Dom.onTap !->
+							Modal.confirm null, tr("Are you sure you want to delete this item?"), !->
+								Server.sync 'remove', key, !->
+									Db.shared.remove key
+								Modal.remove()
+				Dom.h4 tr("Assign users")
+				Plugin.users.iterate (user) !->
+					Ui.item !->
+						Ui.avatar user.get('avatar')
+						Dom.text user.get('name')
+
+						if false #+user.key() is +value.get()
+							Dom.style fontWeight: 'bold'
+
+							Dom.div !->
+								Dom.style
+									Flex: 1
+									padding: '0 10px'
+									textAlign: 'right'
+									fontSize: '150%'
+									color: Plugin.colors().highlight
+								Dom.text "✓"
+
+						Dom.onTap !->
+							log "hoi"
+							# handleChange [parseInt(user.key())]
+							# value.set user.key()
+							# Modal.remove()
+
+
 # input that handles selection of a member
 selectMember = (opts) !->
+	log opts
 	opts ||= {}
 	[handleChange, initValue] = Form.makeInput opts, (v) -> 0|v
 
-	value = Obs.create(initValue)
+	# value = Obs.create(initValue)
+	value = Obs.create(opts.value())
 	Form.box !->
-		Dom.style fontSize: '125%', paddingRight: '56px'
-		Dom.text opts.title||tr("Selected member")
-		v = value.get()
 		Dom.div !->
-			Dom.style color: (if v then 'inherit' else '#aaa')
-			Dom.text (if v then Plugin.userName(v) else tr("Nobody"))
-		if v
-			Ui.avatar Plugin.userAvatar(v),
-				style:
-					position: 'absolute'
-					right: '6px'
-					top: '50%'
-					marginTop: '-20px'
+			Dom.style fontSize: '125%', paddingRight: '56px'
+			Dom.text opts.title||tr("Selected member")
+		v = value.get()
+		# Dom.div !->
+			# Dom.style color: (if v then 'inherit' else '#aaa')
+			# Dom.text (if v then Plugin.userName(v) else tr("Nobody"))
+		log v
+		Dom.div !->
+			Dom.style
+				Box: 'right'
+		if v.length > 0
+			for vi in v
+				log vi
+				Ui.avatar Plugin.userAvatar(vi),
+					style:
+						# position: 'absolute'
+						# right: '6px'
+						top: '50%'
+						marginTop: '-20px'
 
 		Dom.onTap !->
 			Modal.show opts.selectTitle||tr("Select member"), !->
@@ -68,13 +156,13 @@ selectMember = (opts) !->
 									Dom.text "✓"
 
 							Dom.onTap !->
-								handleChange user.key()
+								handleChange [parseInt(user.key())]
 								value.set user.key()
 								Modal.remove()
 			, (choice) !->
 				log 'choice', choice
 				if choice is 'clear'
-					handleChange ''
+					handleChange []
 					value.set ''
 			, ['cancel', tr("Cancel"), 'clear', tr("Clear")]
 
@@ -146,6 +234,35 @@ renderItem = (itemId) !->
 		Social.renderComments(itemId)
 
 renderList = !->
+	mobile = Plugin.agent().ios or Plugin.agent().android
+
+	DragToComplete = (element, key) !->
+		# if mobile
+		Dom.trackTouch (touches...) ->
+			if touches.length == 1
+				element.style transform: "translateX(#{touches[0].x + 'px'})"
+				if touches[0].op is 4 #touch is stopped
+					log "ping"
+					if touches[0].x > 50 #treshhold
+						Server.sync 'complete', key, true, !->
+							Db.shared.set key, 'completed', true
+					if touches[0].x < -50 #treshhold
+						Server.sync 'complete', key, false, !->
+							Db.shared.set key, 'completed', false
+					element.style transform: "translateX(0px)"
+			return true #"bubble"
+		, element
+
+	Dom.style
+		overflowX: 'hidden'
+
+	Dom.css
+		".item":
+			marginLeft: '0px'
+			transition: "marginLeft 3s ease 1s"
+		".item-reset":
+			marginLeft: '0px'
+
 	editingItem = Obs.create(false)
 	Ui.list !->
 		#Dom.style backgroundColor: '#fff', margin: '-4px -8px', borderBottom: '1px solid #ccc'
@@ -192,61 +309,115 @@ renderList = !->
 			Obs.onClean !->
 				empty.set(!--count)
 
-			Ui.item !->
+			Dom.div !->
+				itemE = Dom.get()
 				Dom.style
+					minHeight: '50px'
 					Box: 'middle'
-					Flex: 1
-					padding: 0
+					flex: true
+					_BackfaceVisibility: 'hidden' #transform fix
+				# if !mobile
+				# 	Dom.div !->
+				# 		Dom.style Box: 'center middle'
+				# 		item.get('completed')
+				# 			# temp fix for problems arising from marking completed in edit item screen
+				# 		Form.check
+				# 			value: item.func('completed')
+				# 			inScope: !->
+				# 				Dom.style padding: '28px 32px 28px 14px'
+				# 			onChange: (v) !->
+				# 				Server.sync 'complete', item.key(), v, !->
+				# 					item.set('completed', v)
+				# 		Form.vSep()
 
-				Dom.div !->
-					Dom.style Box: 'center middle'
-					item.get('completed')
-						# temp fix for problems arising from marking completed in edit item screen
-					Form.check
-						value: item.func('completed')
-						inScope: !->
-							Dom.style padding: '28px 32px 28px 14px'
-						onChange: (v) !->
-							Server.sync 'complete', item.key(), v, !->
-								item.set('completed', v)
-
-				Form.vSep()
-				
+				# Rearrange icon
 				Dom.div !->
 					Dom.style
-						Box: 'middle'
+						fontSize: '30px'
+						color: "#999"
+					Dom.text "≡"
+
+				# Content and avatar
+				Dom.div !->
+					Dom.style
 						Flex: 1
-						minHeight: '40px'
-						padding: '8px'
-						textDecoration: if item.get('completed') then 'line-through' else 'none'
-						color: if item.get('completed') then '#aaa' else 'inherit'
-						fontSize: '21px'
+						Box: 'left middle'
+						padding: 0
 
 					Dom.div !->
-						Dom.style Flex: 1, color: (if Event.isNew(item.get('time')) then '#5b0' else 'inherit')
-						Dom.userText item.get('text')
-						if notes = item.get('notes')
+						Dom.style
+							boxSizing: 'border-box'
+							Box: 'middle'
+							Flex: 1
+							padding: '8px 4px 8px 12px'
+							textDecoration: if item.get('completed') then 'line-through' else 'none'
+							color: if item.get('completed') then '#aaa' else 'inherit'
+							fontSize: '16px' #'21px'
+						Dom.div !->
+							Dom.style
+								Flex: 1
+								color: (if Event.isNew(item.get('time')) then '#5b0' else 'inherit')
+								# overflow: 'hidden'
+								# whiteSpace: 'nowrap'
+								# textOverflow: 'ellipsis'
+								# width: '0px' #Firefox hack. But.. errrgh... whut?
+							Dom.userText item.get('text')
+							if notes = item.get('notes')
+								Dom.div !->
+									Dom.style
+										color: '#aaa'
+										whiteSpace: 'nowrap'
+										fontSize: '80%'
+										fontWeight: 'normal'
+										overflow: 'hidden'
+										textOverflow: 'ellipsis'
+									Dom.text notes
+						Dom.div !->
+							Event.renderBubble [item.key()]
+					Dom.div !->
+						Dom.style marginRight: '4px'
+							# height: '60px'
+							# Box: 'middle'
+							# position: 'relative'
+						assigned = item.get('assigned')
+						if !assigned? or assigned.length is 0
+							Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
+								margin: '0 0 0 8px'
+								opacity: 0.4
+						else if assigned.length is 1
+							Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
+						else if assigned.length > 1
+							Ui.avatar '#666', size: 30, style: margin: '0 0 0 8px'
 							Dom.div !->
 								Dom.style
-									color: '#aaa'
-									whiteSpace: 'nowrap'
-									fontSize: '70%'
-									fontWeight: 'normal'
-									overflow: 'hidden'
-									textOverflow: 'ellipsis'
-								Dom.text notes
-					Dom.div !->
-						Event.renderBubble [item.key()]
-					if assigned = item.get('assigned')
-						Ui.avatar Plugin.userAvatar(assigned), style: margin: '0 0 0 8px'
-
+									position: 'absolute'
+									top: '20px'
+									left: '50%'
+									color: '#fff'
+								Dom.text assigned.length
+						Dom.onTap !->
+							Server.sync 'assign', item.key(), !->
+								item.set('assigned', Plugin.userId())
 					Dom.onTap !->
 						Page.nav item.key()
+					DragToComplete itemE
 
+				#Overflow menu
+				Form.vSep()
+				Dom.last().style margin: '0px'
+				Dom.div !->
+					Dom.style
+						lineHeight: '9px'
+						padding: '8px'
+					Dom.userText "▪\n▪\n▪"
+					Dom.onTap !->
+						renderMenu(item.key())
+			Form.sep()
 
 		, (item) ->
 			if +item.key()
 				-item.key() + (if item.peek('completed') then 1e9 else 0)
+
 
 		Obs.observe !->
 			log 'empty now', empty.get()
@@ -257,3 +428,10 @@ renderList = !->
 						textAlign: 'center'
 						color: '#bbb'
 					Dom.text tr("No items")
+
+	Dom.div !->
+		Dom.style
+			textAlign: 'center'
+			margin: '20px'
+			color: '#999'
+		Dom.text tr("Swipe an item left to check it, and to the right to uncheck it")

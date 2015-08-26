@@ -22,7 +22,7 @@ exports.render = !->
 
 renderMenu = (key) !->
 	Modal.show tr("Options"), !->
-		Dom.style width: '80%'
+		Dom.style width: '80%', maxWidth: '400px'
 		Dom.div !->
 			Dom.style
 				maxHeight: '70%'
@@ -92,7 +92,10 @@ renderMenu = (key) !->
 								Dom.text "✓"
 
 						Dom.onTap !->
-							log "hoi"
+							log user.key()
+							Server.sync 'assign', key, parseInt(user.key()), !->
+								log "lawl"
+								# Db.shared.set(key, 'assigned', user.key())
 							# handleChange [parseInt(user.key())]
 							# value.set user.key()
 							# Modal.remove()
@@ -235,6 +238,8 @@ renderItem = (itemId) !->
 
 renderList = !->
 	mobile = Plugin.agent().ios or Plugin.agent().android
+	listE = []
+	reorderSpace = 0
 
 	DragToComplete = (element, key) !->
 		# if mobile
@@ -242,7 +247,6 @@ renderList = !->
 			if touches.length == 1
 				element.style transform: "translateX(#{touches[0].x + 'px'})"
 				if touches[0].op is 4 #touch is stopped
-					log "ping"
 					if touches[0].x > 50 #treshhold
 						Server.sync 'complete', key, true, !->
 							Db.shared.set key, 'completed', true
@@ -252,6 +256,31 @@ renderList = !->
 					element.style transform: "translateX(0px)"
 			return true #"bubble"
 		, element
+
+	DragToReorder = (element) !->
+		Dom.trackTouch (touches...) ->
+			if touches.length == 1
+				y = element.getOffsetXY().y + touches[0].y + (element.height()/2)
+				if touches[0].op is 1
+					reorderSpace = element.height()
+					# if element in listE then listE.splice(listE.indexOf(element), 1)
+				element.style transform: "translateY(#{touches[0].y + 'px'})"
+				#check dragover
+				log listE
+				for li in listE
+					if li is element then continue
+					liY = li.getOffsetXY().y
+					if y < liY+li.height() and y > liY
+						li.style backgroundColor: 'wheat'
+					else
+						li.style backgroundColor: 'inherit'
+				log element.getOffsetXY().y + touches[0].y
+				if touches[0].op is 4 #touch is stopped
+					element.prop 'dragging', false
+					log "done"
+					element.style transform: "translateY(0)"
+			return true
+		,element
 
 	Dom.style
 		overflowX: 'hidden'
@@ -336,6 +365,7 @@ renderList = !->
 						fontSize: '30px'
 						color: "#999"
 					Dom.text "≡"
+					DragToReorder itemE
 
 				# Content and avatar
 				Dom.div !->
@@ -381,9 +411,9 @@ renderList = !->
 							# position: 'relative'
 						assigned = item.get('assigned')
 						if !assigned? or assigned.length is 0
-							Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
-								margin: '0 0 0 8px'
-								opacity: 0.4
+							# Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
+							# 	margin: '0 0 0 8px'
+							# 	opacity: 0.4
 						else if assigned.length is 1
 							Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
 						else if assigned.length > 1
@@ -395,12 +425,9 @@ renderList = !->
 									left: '50%'
 									color: '#fff'
 								Dom.text assigned.length
-						Dom.onTap !->
-							Server.sync 'assign', item.key(), !->
-								item.set('assigned', Plugin.userId())
 					Dom.onTap !->
 						Page.nav item.key()
-					DragToComplete itemE
+					# DragToComplete itemE, item.key()
 
 				#Overflow menu
 				Form.vSep()
@@ -412,12 +439,19 @@ renderList = !->
 					Dom.userText "▪\n▪\n▪"
 					Dom.onTap !->
 						renderMenu(item.key())
+				listE.push itemE
 			Form.sep()
-
 		, (item) ->
 			if +item.key()
 				-item.key() + (if item.peek('completed') then 1e9 else 0)
 
+		Dom.div !->
+			Dom.style
+				width: '100%'
+				height: '40px'
+				backgroundColor: 'wheat'
+			Dom.text "dragelement"
+			dragElement = Dom.get()
 
 		Obs.observe !->
 			log 'empty now', empty.get()

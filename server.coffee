@@ -28,18 +28,19 @@ exports.client_remove = (id) !->
 	Db.shared.remove(id)
 
 exports.client_complete = (id, value) !->
-	log "setting completed"
+	log "setting completed", id
 	if Db.shared.get(id)
 		Db.shared.set id, 'completed', !!value
 
-exports.client_assign = (id) !->
+exports.client_assign = (id, user = Plugin.userId()) !->
+	log "assigneing", id, user
 	if ass = Db.shared.get(id, 'assigned')
-		if Plugin.userId() in ass
-			ass.splice(ass.indexOf(Plugin.userId()), 1)
+		if user in ass
+			ass.splice(ass.indexOf(user), 1)
 			Db.shared.set id, 'assigned', ass
 		else
-			ass.push Plugin.userId()
+			ass.push user
 			Db.shared.set id, 'assigned', ass
-			# Db.shared.set id, 'assigned', Plugin.userId()
+			# Db.shared.set id, 'assigned', user
 	else
-		Db.shared.set id, 'assigned', [Plugin.userId()]
+		Db.shared.set id, 'assigned', [user]

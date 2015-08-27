@@ -13,6 +13,9 @@ Time = require 'time'
 Ui = require 'ui'
 {tr} = require 'i18n'
 
+swipeToCompleteTreshold = 50 #in pixels
+dragScrollTreshold = 50 #in pixels
+
 exports.render = !->
 	itemId = Page.state.get(0)
 	if itemId
@@ -240,9 +243,18 @@ renderList = !->
 	mobile = Plugin.agent().ios or Plugin.agent().android
 	listE = []
 	offsetO = Obs.create({})
-	reorderSpace = 0
-	block = false
 	oldY = 0
+	contentE = Dom.get()
+	contentHeight = 0
+	scrollDelta = 0
+	scrolling = false
+
+	log "Make scrolling interval"
+	Obs.interval 100, !->
+		if scrolling is 0 then return
+		scrollDelta += scrolling * 10
+		# log "scrollDelta", scrollDelta, (touches[0].yc-50)
+		Page.scroll(scrollDelta, false)
 
 	DragToComplete = (element, key) !->
 		# if mobile
@@ -251,10 +263,10 @@ renderList = !->
 				if touches[0].op is 1 then element.addClass "dragging"
 				element.style _transform: "translateX(#{touches[0].x + 'px'})"
 				if touches[0].op is 4 #touch is stopped
-					if touches[0].x > 50 #treshhold
+					if touches[0].x > swipeToCompleteTreshold #treshhold
 						Server.sync 'complete', key, true, !->
 							Db.shared.set key, 'completed', true
-					if touches[0].x < -50 #treshhold
+					if touches[0].x < -swipeToCompleteTreshold #treshhold
 						Server.sync 'complete', key, false, !->
 							Db.shared.set key, 'completed', false
 					element.removeClass "dragging"
@@ -270,9 +282,10 @@ renderList = !->
 				direction = y > oldY
 				oldY = y
 				if touches[0].op is 1
-					reorderSpace = element.height()
+					contentHeight = contentE.height()
 					element.addClass "dragging"
 				element.style _transform: "translateY(#{touches[0].y + 'px'})"
+
 				#check dragover
 				overElement = -1
 				for [o, i, li, trans] in listE
@@ -286,6 +299,8 @@ renderList = !->
 						if y < liY+li.height()/2 and y > liY
 							overElement = o
 							break
+
+				#move element out of the way
 				if overElement >= 0
 					if debounce is overElement then return
 					debounce = overElement
@@ -302,8 +317,18 @@ renderList = !->
 					listE[o-1][3] = t
 				debounce = overElement
 
+				#scroll
+				# if touches[0].yc > Page.height()-100-dragScrollTreshold
+				# 	log "scroll Down"
+				ph = Page.height()-100
+				if (touches[0].yc-50) + dragScrollTreshold > ph
+					scrolling = 1
+				else if (touches[0].yc)-50 - dragScrollTreshold < 0
+					scrolling = -1
+				else scrolling = 0
+
+
 				if touches[0].op is 4 #touch is stopped
-					block = false
 					element.removeClass "dragging"
 					log "Done. Write to order"
 					element.style _transform: "translateY(0)"
@@ -363,18 +388,18 @@ renderList = !->
 			Dom.div !->
 				itemRE = Dom.get()
 				Dom.addClass "sortItem"
+				#offset for draggin
+				Obs.observe !->
+					offset = offsetO.get item.key()
+					# if listE[item.peek('order')] then listE[item.peek('order')][3] = offset
+					Dom.style _transform: "translateY(#{offset + 'px'})"
+
 				Dom.div !->
 					Dom.addClass "sortItem"
 					itemDE = Dom.get()
 					Dom.style
 						minHeight: '50px'
 						Box: 'middle'
-					#offset for draggin
-					Obs.observe !->
-						offset = offsetO.get item.key()
-						# if listE[item.peek('order')] then listE[item.peek('order')][3] = offset
-						Dom.style _transform: "translateY(#{offset + 'px'})"
-
 					# if !mobile
 					# 	Dom.div !->
 					# 		Dom.style Box: 'center middle'
@@ -470,8 +495,8 @@ renderList = !->
 						Dom.onTap !->
 							renderMenu(item.key())
 					log "add to listE", item.peek('order'), item.key(), item.peek('text')
-					listE.push [item.peek('order'), item.key(), itemRE, 0]
 				Form.sep()
+				listE.push [item.peek('order'), item.key(), itemRE, 0]
 		, (item) ->
 			item.peek('order')
 			# if +item.key()

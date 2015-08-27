@@ -239,13 +239,17 @@ renderItem = (itemId) !->
 renderList = !->
 	mobile = Plugin.agent().ios or Plugin.agent().android
 	listE = []
+	offsetO = Obs.create({})
 	reorderSpace = 0
+	block = false
+	oldY = 0
 
 	DragToComplete = (element, key) !->
 		# if mobile
 		Dom.trackTouch (touches...) ->
 			if touches.length == 1
-				element.style transform: "translateX(#{touches[0].x + 'px'})"
+				if touches[0].op is 1 then element.addClass "dragging"
+				element.style _transform: "translateX(#{touches[0].x + 'px'})"
 				if touches[0].op is 4 #touch is stopped
 					if touches[0].x > 50 #treshhold
 						Server.sync 'complete', key, true, !->
@@ -253,44 +257,62 @@ renderList = !->
 					if touches[0].x < -50 #treshhold
 						Server.sync 'complete', key, false, !->
 							Db.shared.set key, 'completed', false
-					element.style transform: "translateX(0px)"
+					element.removeClass "dragging"
+					element.style _transform: "translateX(0px)"
 			return true #"bubble"
 		, element
 
-	DragToReorder = (element) !->
+	DragToReorder = (element, elementO) !->
+		debounce = -1
 		Dom.trackTouch (touches...) ->
 			if touches.length == 1
 				y = element.getOffsetXY().y + touches[0].y + (element.height()/2)
+				direction = y > oldY
+				oldY = y
 				if touches[0].op is 1
 					reorderSpace = element.height()
-					# if element in listE then listE.splice(listE.indexOf(element), 1)
-				element.style transform: "translateY(#{touches[0].y + 'px'})"
+					element.addClass "dragging"
+				element.style _transform: "translateY(#{touches[0].y + 'px'})"
 				#check dragover
-				log listE
-				for li in listE
+				overElement = -1
+				for [o, i, li, trans] in listE
 					if li is element then continue
-					liY = li.getOffsetXY().y
-					if y < liY+li.height() and y > liY
-						li.style backgroundColor: 'wheat'
+					liY = li.getOffsetXY().y + trans
+					if direction
+						if y < liY+li.height() and y > liY+li.height()/2
+							overElement = o
+							break
 					else
-						li.style backgroundColor: 'inherit'
-				log element.getOffsetXY().y + touches[0].y
+						if y < liY+li.height()/2 and y > liY
+							overElement = o
+							break
+				if overElement >= 0
+					if debounce is overElement then return
+					debounce = overElement
+					if overElement > elementO
+						t = if direction and trans > 0 then 0 else element.height()
+						t = if !direction and trans < 0 then 0 else -element.height()
+					else 
+						if direction
+							t = if trans > 0 then 0 else -element.height()
+						else
+							t = if trans < 0 then 0 else element.height()
+					log "set", o, i, t, direction
+					offsetO.set i, t
+					listE[o-1][3] = t
+				debounce = overElement
+
 				if touches[0].op is 4 #touch is stopped
-					element.prop 'dragging', false
-					log "done"
-					element.style transform: "translateY(0)"
+					block = false
+					element.removeClass "dragging"
+					log "Done. Write to order"
+					element.style _transform: "translateY(0)"
 			return true
 		,element
 
 	Dom.style
 		overflowX: 'hidden'
-
-	Dom.css
-		".item":
-			marginLeft: '0px'
-			transition: "marginLeft 3s ease 1s"
-		".item-reset":
-			marginLeft: '0px'
+		_userSelect: 'none'
 
 	editingItem = Obs.create(false)
 	Ui.list !->
@@ -333,125 +355,127 @@ renderList = !->
 		empty = Obs.create(true)
 
 		# List of all items
-		Db.shared.iterate (item) !->
+		Db.shared.observeEach (item) !->
 			empty.set(!++count)
 			Obs.onClean !->
 				empty.set(!--count)
 
 			Dom.div !->
-				itemE = Dom.get()
-				Dom.style
-					minHeight: '50px'
-					Box: 'middle'
-					flex: true
-					_BackfaceVisibility: 'hidden' #transform fix
-				# if !mobile
-				# 	Dom.div !->
-				# 		Dom.style Box: 'center middle'
-				# 		item.get('completed')
-				# 			# temp fix for problems arising from marking completed in edit item screen
-				# 		Form.check
-				# 			value: item.func('completed')
-				# 			inScope: !->
-				# 				Dom.style padding: '28px 32px 28px 14px'
-				# 			onChange: (v) !->
-				# 				Server.sync 'complete', item.key(), v, !->
-				# 					item.set('completed', v)
-				# 		Form.vSep()
-
-				# Rearrange icon
+				itemRE = Dom.get()
+				Dom.addClass "sortItem"
 				Dom.div !->
+					Dom.addClass "sortItem"
+					itemDE = Dom.get()
 					Dom.style
-						fontSize: '30px'
-						color: "#999"
-					Dom.text "≡"
-					DragToReorder itemE
+						minHeight: '50px'
+						Box: 'middle'
+					#offset for draggin
+					Obs.observe !->
+						offset = offsetO.get item.key()
+						# if listE[item.peek('order')] then listE[item.peek('order')][3] = offset
+						Dom.style _transform: "translateY(#{offset + 'px'})"
 
-				# Content and avatar
-				Dom.div !->
-					Dom.style
-						Flex: 1
-						Box: 'left middle'
-						padding: 0
+					# if !mobile
+					# 	Dom.div !->
+					# 		Dom.style Box: 'center middle'
+					# 		item.get('completed')
+					# 			# temp fix for problems arising from marking completed in edit item screen
+					# 		Form.check
+					# 			value: item.func('completed')
+					# 			inScope: !->
+					# 				Dom.style padding: '28px 32px 28px 14px'
+					# 			onChange: (v) !->
+					# 				Server.sync 'complete', item.key(), v, !->
+					# 					item.set('completed', v)
+					# 		Form.vSep()
 
+					# Rearrange icon
 					Dom.div !->
 						Dom.style
-							boxSizing: 'border-box'
-							Box: 'middle'
+							fontSize: '30px'
+							color: "#999"
+						Dom.text "≡"
+						DragToReorder itemRE, item.peek('order')
+
+					# Content and avatar
+					Dom.div !->
+						Dom.style
 							Flex: 1
-							padding: '8px 4px 8px 12px'
-							textDecoration: if item.get('completed') then 'line-through' else 'none'
-							color: if item.get('completed') then '#aaa' else 'inherit'
-							fontSize: '16px' #'21px'
+							Box: 'left middle'
+							padding: 0
+
 						Dom.div !->
 							Dom.style
+								boxSizing: 'border-box'
+								Box: 'middle'
 								Flex: 1
-								color: (if Event.isNew(item.get('time')) then '#5b0' else 'inherit')
-								# overflow: 'hidden'
-								# whiteSpace: 'nowrap'
-								# textOverflow: 'ellipsis'
-								# width: '0px' #Firefox hack. But.. errrgh... whut?
-							Dom.userText item.get('text')
-							if notes = item.get('notes')
-								Dom.div !->
-									Dom.style
-										color: '#aaa'
-										whiteSpace: 'nowrap'
-										fontSize: '80%'
-										fontWeight: 'normal'
-										overflow: 'hidden'
-										textOverflow: 'ellipsis'
-									Dom.text notes
-						Dom.div !->
-							Event.renderBubble [item.key()]
-					Dom.div !->
-						Dom.style marginRight: '4px'
-							# height: '60px'
-							# Box: 'middle'
-							# position: 'relative'
-						assigned = item.get('assigned')
-						if !assigned? or assigned.length is 0
-							# Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
-							# 	margin: '0 0 0 8px'
-							# 	opacity: 0.4
-						else if assigned.length is 1
-							Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
-						else if assigned.length > 1
-							Ui.avatar '#666', size: 30, style: margin: '0 0 0 8px'
+								padding: '8px 4px 8px 12px'
+								textDecoration: if item.get('completed') then 'line-through' else 'none'
+								color: if item.get('completed') then '#aaa' else 'inherit'
+								fontSize: '16px' #'21px'
 							Dom.div !->
 								Dom.style
-									position: 'absolute'
-									top: '20px'
-									left: '50%'
-									color: '#fff'
-								Dom.text assigned.length
-					Dom.onTap !->
-						Page.nav item.key()
-					# DragToComplete itemE, item.key()
+									Flex: 1
+									color: (if Event.isNew(item.get('time')) then '#5b0' else 'inherit')
+									# overflow: 'hidden'
+									# whiteSpace: 'nowrap'
+									# textOverflow: 'ellipsis'
+									# width: '0px' #Firefox hack. But.. errrgh... whut?
+								Dom.userText item.get('text')
+								if notes = item.get('notes')
+									Dom.div !->
+										Dom.style
+											color: '#aaa'
+											whiteSpace: 'nowrap'
+											fontSize: '80%'
+											fontWeight: 'normal'
+											overflow: 'hidden'
+											textOverflow: 'ellipsis'
+										Dom.text notes
+							Dom.div !->
+								Event.renderBubble [item.key()]
+						Dom.div !->
+							Dom.style marginRight: '4px'
+								# height: '60px'
+								# Box: 'middle'
+								# position: 'relative'
+							assigned = item.get('assigned')
+							if !assigned? or assigned.length is 0
+								# Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
+								# 	margin: '0 0 0 8px'
+								# 	opacity: 0.4
+							else if assigned.length is 1
+								Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
+							else if assigned.length > 1
+								Ui.avatar '#666', size: 30, style: margin: '0 0 0 8px'
+								Dom.div !->
+									Dom.style
+										position: 'absolute'
+										top: '20px'
+										left: '50%'
+										color: '#fff'
+									Dom.text assigned.length
+						Dom.onTap !->
+							Page.nav item.key()
+						DragToComplete itemDE, item.key()
 
-				#Overflow menu
-				Form.vSep()
-				Dom.last().style margin: '0px'
-				Dom.div !->
-					Dom.style
-						lineHeight: '9px'
-						padding: '8px'
-					Dom.userText "▪\n▪\n▪"
-					Dom.onTap !->
-						renderMenu(item.key())
-				listE.push itemE
-			Form.sep()
+					#Overflow menu
+					Form.vSep()
+					Dom.last().style margin: '0px'
+					Dom.div !->
+						Dom.style
+							lineHeight: '9px'
+							padding: '8px'
+						Dom.userText "▪\n▪\n▪"
+						Dom.onTap !->
+							renderMenu(item.key())
+					log "add to listE", item.peek('order'), item.key(), item.peek('text')
+					listE.push [item.peek('order'), item.key(), itemRE, 0]
+				Form.sep()
 		, (item) ->
-			if +item.key()
-				-item.key() + (if item.peek('completed') then 1e9 else 0)
-
-		Dom.div !->
-			Dom.style
-				width: '100%'
-				height: '40px'
-				backgroundColor: 'wheat'
-			Dom.text "dragelement"
-			dragElement = Dom.get()
+			item.peek('order')
+			# if +item.key()
+			# 	-item.key() + (if item.peek('completed') then 1e9 else 0)
 
 		Obs.observe !->
 			log 'empty now', empty.get()
@@ -469,3 +493,14 @@ renderList = !->
 			margin: '20px'
 			color: '#999'
 		Dom.text tr("Swipe an item left to check it, and to the right to uncheck it")
+
+Dom.css
+	".sortItem.dragging":
+		position: 'relative'
+		zIndex: 99999
+		backgroundColor: '#fff'
+		opacity: '0.8'
+		_transition: 'none'
+	".sortItem":
+		_backfaceVisibility: 'hidden'
+		_transition: 'transform 0.2s ease-out'

@@ -13,9 +13,9 @@ Time = require 'time'
 Ui = require 'ui'
 {tr} = require 'i18n'
 
-swipeToCompleteTreshold = 50 #in pixels
-swipeToCompleteRespondTreshold = 5 #in pixels applied on Y axis!
-dragScrollTreshold = 60 #in pixels
+swipeToCompleteTreshold = 50 # in pixels
+swipeToCompleteRespondTreshold = 5 # in pixels applied on Y axis!
+dragScrollTreshold = 60 # in pixels
 
 exports.render = !->
 	itemId = Page.state.get(0)
@@ -83,7 +83,7 @@ renderMenu = (key) !->
 						Ui.avatar user.get('avatar')
 						Dom.text user.get('name')
 
-						if false #+user.key() is +value.get()
+						if false # +user.key() is +value.get()
 							Dom.style fontWeight: 'bold'
 
 							Dom.div !->
@@ -244,16 +244,15 @@ renderList = !->
 	log Page.height()
 	mobile = Plugin.agent().ios or Plugin.agent().android
 	listE = []
-	offsetO = Obs.create({})
+	offsetO = null
 	oldY = 0
 	contentE = Dom.get()
 	contentHeight = 0
 	scrollDelta = 0
+	startScrollDelta = 0
 	scrolling = 0
-	dragDirection = 0 #1 for x, -1 for y
-	moveDirection = null
-	moveDirection2 = null
-	debounce = -1
+	dragDirection = 0 # 1 for x, -1 for y
+	dragPosition = -1
 	draggedElement = null
 	draggedElementO = null
 	draggedDelta = 0
@@ -265,7 +264,7 @@ renderList = !->
 		scrollDelta = Math.min(contentE.height()-(Page.height()-100), Math.max(0, scrollDelta + scrolling * 10))
 		Page.scroll(scrollDelta, false)
 		if draggedElement?
-			draggedElementY = draggedElement.getOffsetXY().y + draggedDelta + (draggedElement.height()/2) + scrollDelta
+			draggedElementY = draggedElement.getOffsetXY().y + draggedDelta + (draggedElement.height()/2) + scrollDelta - startScrollDelta
 			onDrag()
 
 	DragToComplete = (element, key) !->
@@ -275,7 +274,7 @@ renderList = !->
 				if touches.length == 1 and touches[0].op is 4 then dragDirection = 0
 				return true
 			if touches.length == 1
-				#determine direction
+				# determine direction
 				if dragDirection is 0
 					if touches[0].x isnt 0 or touches[0].y isnt 0
 						log touches[0].x, touches[0].y
@@ -287,28 +286,30 @@ renderList = !->
 							return true
 
 				element.style _transform: "translateX(#{touches[0].x + 'px'})"
-				if touches[0].op is 4 #touch is stopped
+				if touches[0].op is 4 # touch is stopped
 					dragDirection = 0
-					if touches[0].x > swipeToCompleteTreshold #treshhold
+					if touches[0].x > swipeToCompleteTreshold # treshhold
 						Server.sync 'complete', key, true, !->
 							Db.shared.set key, 'completed', true
-					if touches[0].x < -swipeToCompleteTreshold #treshhold
+					if touches[0].x < -swipeToCompleteTreshold # treshhold
 						Server.sync 'complete', key, false, !->
 							Db.shared.set key, 'completed', false
 					element.removeClass "dragging"
 					element.style _transform: "translateX(0px)"
-			return dragDirection < 1 #do default
+			return dragDirection < 1 # do default
 		, element
 
-	DragToReorder = (element, elementO) !->
-		# debounce = -1
+	DragToReorder = (element, elementO, elementId) !->
 		Dom.trackTouch (touches...) ->
 			if touches.length == 1
-				#drag element
-				draggedElementY = element.getOffsetXY().y + touches[0].y + (element.height()/2) + scrollDelta
+				# drag element
 				draggedDelta = touches[0].y
+				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
 
 				if touches[0].op is 1
+					scrollDelta = Page.scroll()
+					startScrollDelta = Page.scroll()
+					log scrollDelta, startScrollDelta
 					contentHeight = contentE.height()
 					element.addClass "dragging"
 					draggedElement = element
@@ -317,7 +318,7 @@ renderList = !->
 
 				onDrag()
 
-				#scroll
+				# scroll
 				ph = Page.height()-100
 				if (touches[0].yc-50) + dragScrollTreshold > ph
 					scrolling = 1
@@ -325,11 +326,24 @@ renderList = !->
 					scrolling = -1
 				else scrolling = 0
 
-				if touches[0].op is 4 #touch is stopped
+				if touches[0].op is 4 # touch is stopped
 					element.removeClass "dragging"
 					log "Done. Write to order"
-					moveDirection = null
-					debounce = -1
+					Server.sync "reoder", elementO, dragPosition, !->
+						if elementO == dragPosition then return
+						if dragPosition > elementO
+							Db.shared.forEach (item) !->
+								if item.get('order') > elementO and item.get('order') <= dragPosition
+									item.incr 'order', -1
+								else if item.get('order') is elementO
+									item.set 'order', dragPosition
+						else
+							Db.shared.forEach (item) !->
+								if item.get('order') < elementO and item.get('order') >= dragPosition
+									item.incr 'order', 1
+								else if item.get('order') is elementO
+									item.set 'order', dragPosition
+					# reset lots of things
 					draggedElement = null
 					draggedElementO = null
 					scrolling = 0
@@ -338,24 +352,26 @@ renderList = !->
 		,element
 
 	onDrag = !->
-		return unless draggedElement and draggedElementO
+		return unless draggedElement and draggedElementO and draggedElementY isnt oldY
 
 		direction = draggedElementY > oldY
-		draggedElement.style _transform: "translateY(#{(draggedDelta + scrollDelta) + 'px'})"
+		draggedElement.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
 
-		#check dragover
+		# check dragover
 		overElement = -1
 		for [o, i, li, trans] in listE
 			if li is draggedElement then continue
 			liY = li.getOffsetXY().y + trans
 			if draggedElementY > liY+li.height()/2 and oldY <= liY+li.height()/2
 				overElement = o
+				dragPosition = o
 				break
 			else
 				if draggedElementY < liY+li.height()/2 and oldY >= liY+li.height()/2
 					overElement = o
+					dragPosition = o
 					break
-		#move element out of the way
+		# move element out of the way
 		if overElement >= 0
 			if overElement > draggedElementO
 				t = if direction and trans > 0 then 0 else draggedElement.height()
@@ -365,10 +381,9 @@ renderList = !->
 					t = if trans > 0 then 0 else -draggedElement.height()
 				else
 					t = if trans < 0 then 0 else draggedElement.height()
-			log "set", o, i, t, direction
+			# log "set", o, i, t, trans, direction
 			offsetO.set i, t
 			listE[o-1][3] = t
-		# debounce = overElement
 		oldY = draggedElementY
 
 	Dom.style
@@ -377,7 +392,7 @@ renderList = !->
 
 	editingItem = Obs.create(false)
 	Ui.list !->
-		#Dom.style backgroundColor: '#fff', margin: '-4px -8px', borderBottom: '1px solid #ccc'
+		# Dom.style backgroundColor: '#fff', margin: '-4px -8px', borderBottom: '1px solid #ccc'
 
 		# Top entry: adding an item
 		Ui.item !->
@@ -416,6 +431,9 @@ renderList = !->
 		empty = Obs.create(true)
 
 		# List of all items
+		log "-------redraw-----"
+		listE = []
+		offsetO = Obs.create({})
 		Db.shared.observeEach (item) !->
 			empty.set(!++count)
 			Obs.onClean !->
@@ -424,7 +442,9 @@ renderList = !->
 			Dom.div !->
 				itemRE = Dom.get()
 				Dom.addClass "sortItem"
-				#offset for draggin
+				# offset for draggin
+				offsetO.set item.key(), 0 # reset own offset when rendering
+				Dom.style _transform: "translateY(#{'0px'})"
 				Obs.observe !->
 					offset = offsetO.get item.key()
 					# if listE[item.peek('order')] then listE[item.peek('order')][3] = offset
@@ -456,7 +476,7 @@ renderList = !->
 							fontSize: '30px'
 							color: "#999"
 						Dom.text "≡"
-						DragToReorder itemRE, item.peek('order')
+						DragToReorder itemRE, item.peek('order'), item.key()
 
 					# Content and avatar
 					Dom.div !->
@@ -520,7 +540,7 @@ renderList = !->
 							Page.nav item.key()
 						DragToComplete itemDE, item.key()
 
-					#Overflow menu
+					# Overflow menu
 					Form.vSep()
 					Dom.last().style margin: '0px'
 					Dom.div !->
@@ -532,9 +552,10 @@ renderList = !->
 							renderMenu(item.key())
 					log "add to listE", item.peek('order'), item.key(), item.peek('text')
 				Form.sep()
-				listE.push [item.peek('order'), item.key(), itemRE, 0]
+				# listE.push [item.peek('order'), item.key(), itemRE, 0]
+				listE[item.peek('order')-1] = [item.peek('order'), item.key(), itemRE, 0]
 		, (item) ->
-			item.peek('order')
+			item.get('order')
 			# if +item.key()
 			# 	-item.key() + (if item.peek('completed') then 1e9 else 0)
 

@@ -32,6 +32,22 @@ exports.client_complete = (id, value) !->
 	if Db.shared.get(id)
 		Db.shared.set id, 'completed', !!value
 
+exports.client_reoder = (id, pos) !->
+	log "reorder", id, pos
+	if id == pos then return
+	if pos > id
+		Db.shared.forEach (item) !->
+			if item.get('order') > id and item.get('order') <= pos
+				item.incr 'order', -1
+			else if item.get('order') is id
+				item.set 'order', pos
+	else
+		Db.shared.forEach (item) !->
+			if item.get('order') < id and item.get('order') >= pos
+				item.incr 'order', 1
+			else if item.get('order') is id
+				item.set 'order', pos
+
 exports.client_assign = (id, user = Plugin.userId()) !->
 	log "assigneing", id, user
 	if ass = Db.shared.get(id, 'assigned')

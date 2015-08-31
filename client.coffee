@@ -14,7 +14,8 @@ Ui = require 'ui'
 {tr} = require 'i18n'
 
 swipeToCompleteTreshold = 50 #in pixels
-dragScrollTreshold = 50 #in pixels
+swipeToCompleteRespondTreshold = 5 #in pixels applied on Y axis!
+dragScrollTreshold = 60 #in pixels
 
 exports.render = !->
 	itemId = Page.state.get(0)
@@ -240,6 +241,7 @@ renderItem = (itemId) !->
 		Social.renderComments(itemId)
 
 renderList = !->
+	log Page.height()
 	mobile = Plugin.agent().ios or Plugin.agent().android
 	listE = []
 	offsetO = Obs.create({})
@@ -247,22 +249,46 @@ renderList = !->
 	contentE = Dom.get()
 	contentHeight = 0
 	scrollDelta = 0
-	scrolling = false
+	scrolling = 0
+	dragDirection = 0 #1 for x, -1 for y
+	moveDirection = null
+	moveDirection2 = null
+	debounce = -1
+	draggedElement = null
+	draggedElementO = null
+	draggedDelta = 0
+	draggedElementY = 0
 
 	log "Make scrolling interval"
-	Obs.interval 100, !->
-		if scrolling is 0 then return
-		scrollDelta += scrolling * 10
-		# log "scrollDelta", scrollDelta, (touches[0].yc-50)
+	Obs.interval 25, !->
+		return unless scrolling
+		scrollDelta = Math.min(contentE.height()-(Page.height()-100), Math.max(0, scrollDelta + scrolling * 10))
 		Page.scroll(scrollDelta, false)
+		if draggedElement?
+			draggedElementY = draggedElement.getOffsetXY().y + draggedDelta + (draggedElement.height()/2) + scrollDelta
+			onDrag()
 
 	DragToComplete = (element, key) !->
 		# if mobile
 		Dom.trackTouch (touches...) ->
+			if dragDirection is -1
+				if touches.length == 1 and touches[0].op is 4 then dragDirection = 0
+				return true
 			if touches.length == 1
-				if touches[0].op is 1 then element.addClass "dragging"
+				#determine direction
+				if dragDirection is 0
+					if touches[0].x isnt 0 or touches[0].y isnt 0
+						log touches[0].x, touches[0].y
+						if touches[0].y is 0 or Math.abs(touches[0].x)/Math.abs(touches[0].y)|0.1 > 3
+							dragDirection = 1
+							element.addClass "dragging"
+						else
+							dragDirection = -1
+							return true
+
 				element.style _transform: "translateX(#{touches[0].x + 'px'})"
 				if touches[0].op is 4 #touch is stopped
+					dragDirection = 0
 					if touches[0].x > swipeToCompleteTreshold #treshhold
 						Server.sync 'complete', key, true, !->
 							Db.shared.set key, 'completed', true
@@ -271,55 +297,27 @@ renderList = !->
 							Db.shared.set key, 'completed', false
 					element.removeClass "dragging"
 					element.style _transform: "translateX(0px)"
-			return true #"bubble"
+			return dragDirection < 1 #do default
 		, element
 
 	DragToReorder = (element, elementO) !->
-		debounce = -1
+		# debounce = -1
 		Dom.trackTouch (touches...) ->
 			if touches.length == 1
-				y = element.getOffsetXY().y + touches[0].y + (element.height()/2)
-				direction = y > oldY
-				oldY = y
+				#drag element
+				draggedElementY = element.getOffsetXY().y + touches[0].y + (element.height()/2) + scrollDelta
+				draggedDelta = touches[0].y
+
 				if touches[0].op is 1
 					contentHeight = contentE.height()
 					element.addClass "dragging"
-				element.style _transform: "translateY(#{touches[0].y + 'px'})"
+					draggedElement = element
+					draggedElementO = elementO
+					oldY = draggedElementY
 
-				#check dragover
-				overElement = -1
-				for [o, i, li, trans] in listE
-					if li is element then continue
-					liY = li.getOffsetXY().y + trans
-					if direction
-						if y < liY+li.height() and y > liY+li.height()/2
-							overElement = o
-							break
-					else
-						if y < liY+li.height()/2 and y > liY
-							overElement = o
-							break
-
-				#move element out of the way
-				if overElement >= 0
-					if debounce is overElement then return
-					debounce = overElement
-					if overElement > elementO
-						t = if direction and trans > 0 then 0 else element.height()
-						t = if !direction and trans < 0 then 0 else -element.height()
-					else 
-						if direction
-							t = if trans > 0 then 0 else -element.height()
-						else
-							t = if trans < 0 then 0 else element.height()
-					log "set", o, i, t, direction
-					offsetO.set i, t
-					listE[o-1][3] = t
-				debounce = overElement
+				onDrag()
 
 				#scroll
-				# if touches[0].yc > Page.height()-100-dragScrollTreshold
-				# 	log "scroll Down"
 				ph = Page.height()-100
 				if (touches[0].yc-50) + dragScrollTreshold > ph
 					scrolling = 1
@@ -327,13 +325,51 @@ renderList = !->
 					scrolling = -1
 				else scrolling = 0
 
-
 				if touches[0].op is 4 #touch is stopped
 					element.removeClass "dragging"
 					log "Done. Write to order"
+					moveDirection = null
+					debounce = -1
+					draggedElement = null
+					draggedElementO = null
+					scrolling = 0
 					element.style _transform: "translateY(0)"
-			return true
+			return false
 		,element
+
+	onDrag = !->
+		return unless draggedElement and draggedElementO
+
+		direction = draggedElementY > oldY
+		draggedElement.style _transform: "translateY(#{(draggedDelta + scrollDelta) + 'px'})"
+
+		#check dragover
+		overElement = -1
+		for [o, i, li, trans] in listE
+			if li is draggedElement then continue
+			liY = li.getOffsetXY().y + trans
+			if draggedElementY > liY+li.height()/2 and oldY <= liY+li.height()/2
+				overElement = o
+				break
+			else
+				if draggedElementY < liY+li.height()/2 and oldY >= liY+li.height()/2
+					overElement = o
+					break
+		#move element out of the way
+		if overElement >= 0
+			if overElement > draggedElementO
+				t = if direction and trans > 0 then 0 else draggedElement.height()
+				t = if !direction and trans < 0 then 0 else -draggedElement.height()
+			else
+				if direction
+					t = if trans > 0 then 0 else -draggedElement.height()
+				else
+					t = if trans < 0 then 0 else draggedElement.height()
+			log "set", o, i, t, direction
+			offsetO.set i, t
+			listE[o-1][3] = t
+		# debounce = overElement
+		oldY = draggedElementY
 
 	Dom.style
 		overflowX: 'hidden'
@@ -526,6 +562,8 @@ Dom.css
 		backgroundColor: '#fff'
 		opacity: '0.8'
 		_transition: 'none'
+		_backfaceVisibility: 'hidden'
 	".sortItem":
 		_backfaceVisibility: 'hidden'
-		_transition: 'transform 0.2s ease-out'
+		transition_: 'transform 0.2s ease-out'
+		WebkitTransition_: 'transform 0.2s ease-out'

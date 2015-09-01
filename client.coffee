@@ -86,101 +86,37 @@ renderMenu = (key) !->
 									Db.shared.remove 'items', key
 								Modal.remove()
 
-				Dom.h4 tr("Assign users")
-				Plugin.users.observeEach (user) !->
-					Ui.item !->
-						Ui.avatar user.get('avatar')
-						Dom.text user.get('name')
-
-						ass = Db.shared.get('items', key, 'assigned')
-						if ass and parseInt(user.key()) in ass
-							log "jup"
-							Dom.style fontWeight: 'bold'
-
-							Dom.div !->
-								Dom.style
-									Flex: 1
-									textAlign: 'right'
-								Icon.render
-									data: 'done'
-						else
-							Dom.style fontWeight: 'normal'
-						Dom.onTap !->
-							log user.key()
-							Server.sync 'assign', key, parseInt(user.key()), !->
-								Db.shared.set('items', key, 'assigned', user.key())
+				Dom.h4 tr("Assign to")
+				selectMember(key)
 
 # input that handles selection of a member
-selectMember = (opts) !->
-	log opts
-	opts ||= {}
-	[handleChange, initValue] = Form.makeInput opts, (v) -> 0|v
+selectMember = (key) !->
+	Plugin.users.observeEach (user) !->
+		Ui.item !->
+			Ui.avatar user.get('avatar')
+			Dom.text user.get('name')
 
-	# value = Obs.create(initValue)
-	value = Obs.create(opts.value())
-	Form.box !->
-		Dom.div !->
-			Dom.style fontSize: '125%', paddingRight: '56px'
-			Dom.text opts.title||tr("Selected member")
-		v = value.get()
-		# Dom.div !->
-			# Dom.style color: (if v then 'inherit' else '#aaa')
-			# Dom.text (if v then Plugin.userName(v) else tr("Nobody"))
-		log v
-		Dom.div !->
-			Dom.style
-				Box: 'right'
-		if v.length > 0
-			for vi in v
-				log vi
-				Ui.avatar Plugin.userAvatar(vi),
-					style:
-						# position: 'absolute'
-						# right: '6px'
-						top: '50%'
-						marginTop: '-20px'
+			ass = Db.shared.get('items', key, 'assigned')
+			if ass and parseInt(user.key()) in ass
+				log "jup"
+				Dom.style fontWeight: 'bold'
 
-		Dom.onTap !->
-			Modal.show opts.selectTitle||tr("Select member"), !->
-				Dom.style width: '80%'
 				Dom.div !->
 					Dom.style
-						maxHeight: '40%'
-						backgroundColor: '#eee'
-						margin: '-12px'
-					Dom.overflow()
-
-					Plugin.users.iterate (user) !->
-						Ui.item !->
-							Ui.avatar user.get('avatar')
-							Dom.text user.get('name')
-
-							if +user.key() is +value.get()
-								Dom.style fontWeight: 'bold'
-
-								Dom.div !->
-									Dom.style
-										Flex: 1
-										padding: '0 10px'
-										textAlign: 'right'
-										fontSize: '150%'
-										color: Plugin.colors().highlight
-									Dom.text "✓"
-
-							Dom.onTap !->
-								handleChange [parseInt(user.key())]
-								value.set user.key()
-								Modal.remove()
-			, (choice) !->
-				log 'choice', choice
-				if choice is 'clear'
-					handleChange []
-					value.set ''
-			, ['cancel', tr("Cancel"), 'clear', tr("Clear")]
+						Flex: 1
+						textAlign: 'right'
+					Icon.render
+						data: 'done'
+			else
+				Dom.style fontWeight: 'normal'
+			Dom.onTap !->
+				log user.key()
+				Server.sync 'assign', key, parseInt(user.key()), !->
+					Db.shared.set('items', key, 'assigned', user.key())
 
 renderItem = (itemId) !->
 	Page.setTitle tr("Item")
-	item = Db.shared.ref(itemId)
+	item = Db.shared.ref 'items', itemId
 	Event.showStar item.get('text')
 	if Plugin.userId() is item.get('by') or Plugin.userIsAdmin()
 		Page.setActions
@@ -235,11 +171,45 @@ renderItem = (itemId) !->
 
 		Form.sep()
 
-		selectMember
-			name: 'assigned'
-			title: tr("Assigned to")
-			value: item.func('assigned')
-			selectTitle: tr("Assign to")
+		Form.box !->
+			Dom.style
+				width: '100%'
+				boxSizing: 'border-box'
+				padding: '0px 8px'
+			Dom.h4 "Assigned to"
+			Dom.div !->
+				Dom.style
+					textAlign: 'center'
+					margin: '0px -4px'
+				for a in item.get('assigned')
+					Dom.div !->
+						Dom.style
+							display: 'inline-block'
+							textAlign: 'center'
+							position: 'relative'
+							padding: '2px'
+							# boxSizing: 'border-box'
+							# borderRadius: '2px'
+							# width: '60px'
+
+						Ui.avatar Plugin.userAvatar(a),
+							style:
+								display: 'inline-block'
+								margin: '0 0 1px 0'
+
+						# Dom.div !->
+						# 	Dom.style fontSize: '18px'
+						# 	Dom.text Form.smileyToEmoji Plugin.userName(a)
+				Dom.onTap !->
+					Modal.show tr("Assign members"), !->
+						Dom.style width: '80%', maxWidth: '400px'
+						Dom.div !->
+							Dom.style
+								maxHeight: '70%'
+								backgroundColor: '#eee'
+								margin: '-12px'
+							Dom.overflow()
+							selectMember(itemId)
 
 	Dom.div !->
 		Dom.style margin: '0 -8px'

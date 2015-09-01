@@ -39,9 +39,11 @@ renderMenu = (key) !->
 						Dom.span !->
 							Dom.style Flex: 1
 							Dom.text tr("Set to uncompleted")
-						Dom.span !->
-							Dom.style fontSize: '24px'
-							Dom.text "✗"
+						Icon.render
+							data: 'cancel'
+							size: 20
+							color: '#444'
+							style: {marginRight: '1px'}
 						Dom.onTap !->
 							Server.sync 'complete', key, false, !->
 								Db.shared.set 'items', key, 'completed', false
@@ -52,7 +54,9 @@ renderMenu = (key) !->
 							Dom.text tr("Mark as Complete")
 						Dom.span !->
 							Dom.style fontSize: '30px'
-							Dom.text "✓"
+							Icon.render
+								data: 'done'
+								color: '#444'
 						Dom.onTap !->
 							Server.sync 'complete', key, true, !->
 								Db.shared.set 'items', key, 'completed', true
@@ -63,7 +67,10 @@ renderMenu = (key) !->
 						Dom.text tr("Add subitem")
 					Dom.span !->
 						Dom.style fontSize: '30px', paddingRight: '4px'
-						Dom.text "+"
+						Icon.render
+							data: 'add'
+							color: '#444'
+							style: {marginRight: '-4px'}
 
 				if Plugin.userId() is Db.shared.peek('items', key, 'by') or Plugin.userIsAdmin()
 					Ui.item !->
@@ -71,7 +78,7 @@ renderMenu = (key) !->
 							Dom.style Flex: 1
 							Dom.text tr("Delete")
 						Icon.render
-							data: 'trash'
+							data: 'trash2'
 							color: '#444'
 						Dom.onTap !->
 							Modal.confirm null, tr("Are you sure you want to delete this item?"), !->
@@ -93,21 +100,15 @@ renderMenu = (key) !->
 							Dom.div !->
 								Dom.style
 									Flex: 1
-									padding: '0 10px'
 									textAlign: 'right'
-									fontSize: '150%'
-									color: Plugin.colors().highlight
-								Dom.text "✓"
+								Icon.render
+									data: 'done'
 						else
 							Dom.style fontWeight: 'normal'
 						Dom.onTap !->
 							log user.key()
 							Server.sync 'assign', key, parseInt(user.key()), !->
 								Db.shared.set('items', key, 'assigned', user.key())
-							# handleChange [parseInt(user.key())]
-							# value.set user.key()
-							# Modal.remove()
-
 
 # input that handles selection of a member
 selectMember = (opts) !->
@@ -475,29 +476,32 @@ renderList = !->
 					Dom.style
 						minHeight: '50px'
 						Box: 'middle'
-					# if !mobile
-					# 	Dom.div !->
-					# 		Dom.style Box: 'center middle'
-					# 		item.get('completed')
-					# 			# temp fix for problems arising from marking completed in edit item screen
-					# 		Form.check
-					# 			value: item.func('completed')
-					# 			inScope: !->
-					# 				Dom.style padding: '28px 32px 28px 14px'
-					# 			onChange: (v) !->
-					# 				Server.sync 'complete', item.key(), v, !->
-					# 					item.set('completed', v)
-					# 		Form.vSep()
-
 					# Rearrange icon
 					Dom.div !->
 						Dom.style
-							fontSize: '30px'
-							color: "#999"
 							padding: "0px 8px"
 							marginLeft: "-8px"
-						Dom.text "≡"
+						Icon.render
+							data: 'reorder'
+							color: '#999'
 						DragToReorder itemRE, item.peek('order'), item.key()
+
+					#checkbox for desktop
+					if !mobile
+						Dom.div !->
+							Dom.style Box: 'center middle'
+							Form.vSep()
+							item.get('completed')
+								# temp fix for problems arising from marking completed in edit item screen
+							Form.check
+								value: item.func('completed')
+								inScope: !->
+									Dom.style padding: '28px 32px 28px 14px'
+								onChange: (v) !->
+									Server.sync 'complete', item.key(), v, !->
+										item.set('completed', v)
+							Form.vSep()
+
 
 					# Content and avatar
 					Dom.div !->
@@ -536,10 +540,11 @@ renderList = !->
 							Dom.div !->
 								Event.renderBubble [item.key()]
 						Dom.div !->
-							Dom.style marginRight: '4px'
+							Dom.style
+								marginRight: '4px'
 								# height: '60px'
 								# Box: 'middle'
-								# position: 'relative'
+								position: 'relative'
 							assigned = item.get('assigned')
 							if !assigned? or assigned.length is 0
 								# Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
@@ -552,22 +557,26 @@ renderList = !->
 								Dom.div !->
 									Dom.style
 										position: 'absolute'
-										top: '20px'
-										left: '50%'
+										top: '10px'
+										width: '100%'
+										marginLeft: '4px'
+										textAlign: 'center'
 										color: '#fff'
 									Dom.text assigned.length
 						Dom.onTap !->
+							log "ding"
 							Page.nav item.key()
-						DragToComplete itemDE, item.key()
+						if mobile then DragToComplete itemDE, item.key()
 
 					# Overflow menu
 					Form.vSep()
 					Dom.last().style margin: '0px'
 					Dom.div !->
 						Dom.style
-							lineHeight: '9px'
 							padding: '8px'
-						Dom.userText "▪\n▪\n▪"
+						Icon.render
+							data: 'more'
+							color: '#999'
 						Dom.onTap !->
 							renderMenu(item.key())
 					log "add to listE", item.peek('order'), item.key(), item.peek('text')
@@ -589,7 +598,7 @@ renderList = !->
 						color: '#bbb'
 					Dom.text tr("No items")
 
-	Dom.div !->
+	if mobile then Dom.div !->
 		Dom.style
 			textAlign: 'center'
 			margin: '20px'

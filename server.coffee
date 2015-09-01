@@ -67,4 +67,4 @@ exports.client_assign = (id, user = Plugin.userId()) !->
 			Db.shared.set 'items', id, 'assigned', ass
 			# Db.shared.set id, 'assigned', user
 	else
-		Db.shared.set id, 'items', 'assigned', [user]
+		Db.shared.set 'items', id, 'assigned', [user]

@@ -35,7 +35,7 @@ renderMenu = (key) !->
 			Dom.overflow()
 			Ui.list !->
 				Ui.item !->
-					if Db.shared.peek(key, 'completed')
+					if Db.shared.peek('items', key, 'completed')
 						Dom.span !->
 							Dom.style Flex: 1
 							Dom.text tr("Set to uncompleted")
@@ -44,7 +44,7 @@ renderMenu = (key) !->
 							Dom.text "✗"
 						Dom.onTap !->
 							Server.sync 'complete', key, false, !->
-								Db.shared.set key, 'completed', false
+								Db.shared.set 'items', key, 'completed', false
 							Modal.remove()
 					else
 						Dom.span !->
@@ -55,7 +55,7 @@ renderMenu = (key) !->
 							Dom.text "✓"
 						Dom.onTap !->
 							Server.sync 'complete', key, true, !->
-								Db.shared.set key, 'completed', true
+								Db.shared.set 'items', key, 'completed', true
 							Modal.remove()
 				Ui.item !->
 					Dom.span !->
@@ -64,7 +64,8 @@ renderMenu = (key) !->
 					Dom.span !->
 						Dom.style fontSize: '30px', paddingRight: '4px'
 						Dom.text "+"
-				if Plugin.userId() is Db.shared.peek(key, 'by') or Plugin.userIsAdmin()
+
+				if Plugin.userId() is Db.shared.peek('items', key, 'by') or Plugin.userIsAdmin()
 					Ui.item !->
 						Dom.span !->
 							Dom.style Flex: 1
@@ -75,15 +76,18 @@ renderMenu = (key) !->
 						Dom.onTap !->
 							Modal.confirm null, tr("Are you sure you want to delete this item?"), !->
 								Server.sync 'remove', key, !->
-									Db.shared.remove key
+									Db.shared.remove 'items', key
 								Modal.remove()
+
 				Dom.h4 tr("Assign users")
-				Plugin.users.iterate (user) !->
+				Plugin.users.observeEach (user) !->
 					Ui.item !->
 						Ui.avatar user.get('avatar')
 						Dom.text user.get('name')
 
-						if false # +user.key() is +value.get()
+						ass = Db.shared.get('items', key, 'assigned')
+						if ass and parseInt(user.key()) in ass
+							log "jup"
 							Dom.style fontWeight: 'bold'
 
 							Dom.div !->
@@ -94,12 +98,12 @@ renderMenu = (key) !->
 									fontSize: '150%'
 									color: Plugin.colors().highlight
 								Dom.text "✓"
-
+						else
+							Dom.style fontWeight: 'normal'
 						Dom.onTap !->
 							log user.key()
 							Server.sync 'assign', key, parseInt(user.key()), !->
-								log "lawl"
-								# Db.shared.set(key, 'assigned', user.key())
+								Db.shared.set('items', key, 'assigned', user.key())
 							# handleChange [parseInt(user.key())]
 							# value.set user.key()
 							# Modal.remove()
@@ -331,19 +335,19 @@ renderList = !->
 					element.removeClass "dragging"
 					log "Done. Write to order"
 					Server.sync "reoder", elementO, dragPosition, !->
-						if elementO == dragPosition then return
-						if dragPosition > elementO
-							Db.shared.forEach (item) !->
-								if item.get('order') > elementO and item.get('order') <= dragPosition
-									item.incr 'order', -1
-								else if item.get('order') is elementO
-									item.set 'order', dragPosition
-						else
-							Db.shared.forEach (item) !->
-								if item.get('order') < elementO and item.get('order') >= dragPosition
-									item.incr 'order', 1
-								else if item.get('order') is elementO
-									item.set 'order', dragPosition
+						if elementO != dragPosition
+							if dragPosition > elementO
+								Db.shared.forEach 'item', (item) !->
+									if item.get('order') > elementO and item.get('order') <= dragPosition
+										item.incr 'order', -1
+									else if item.get('order') is elementO
+										item.set 'order', dragPosition
+							else
+								Db.shared.forEach 'item', (item) !->
+									if item.get('order') < elementO and item.get('order') >= dragPosition
+										item.incr 'order', 1
+									else if item.get('order') is elementO
+										item.set 'order', dragPosition
 					# reset lots of things
 					draggedElement = null
 					draggedElementO = null
@@ -360,7 +364,15 @@ renderList = !->
 
 		# check dragover
 		overElement = -1
-		for [o, i, li, trans] in listE
+		i = null
+		# for [o, i, li, trans], j in listE
+		for val, j in listE
+			continue unless val #dealing with empty slots in the array
+			o = val[0]
+			i = val[1]
+			li = val[2]
+			trans = val[3]
+
 			if li is draggedElement then continue
 			liY = li.getOffsetXY().y + trans
 			if draggedElementY > liY+li.height()/2 and oldY <= liY+li.height()/2
@@ -372,7 +384,7 @@ renderList = !->
 				dragPosition = o-1
 				break
 		# move element out of the way
-		if overElement >= 0
+		if overElement >= 0 and i
 			if overElement > draggedElementO
 				t = if direction and trans > 0 then 0 else draggedElement.height()
 				t = if !direction and trans < 0 then 0 else -draggedElement.height()

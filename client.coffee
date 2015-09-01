@@ -314,7 +314,8 @@ renderList = !->
 					element.addClass "dragging"
 					draggedElement = element
 					draggedElementO = elementO
-					oldY = draggedElementY
+					# oldY = draggedElementY
+					oldY = element.getOffsetXY().y + (element.height()/2)
 
 				onDrag()
 
@@ -366,11 +367,10 @@ renderList = !->
 				overElement = o
 				dragPosition = o
 				break
-			else
-				if draggedElementY < liY+li.height()/2 and oldY >= liY+li.height()/2
-					overElement = o
-					dragPosition = o
-					break
+			else if draggedElementY < liY+li.height()/2 and oldY >= liY+li.height()/2
+				overElement = o
+				dragPosition = o-1
+				break
 		# move element out of the way
 		if overElement >= 0
 			if overElement > draggedElementO
@@ -382,6 +382,13 @@ renderList = !->
 				else
 					t = if trans < 0 then 0 else draggedElement.height()
 			# log "set", o, i, t, trans, direction
+			if t == 0
+				log "normal"
+				dragPosition = if draggedElementO > o then o+1 else o-1
+			else
+				dragPosition = o
+				if t > 0 then log "down" else log "up"
+			log "dropped on:", dragPosition
 			offsetO.set i, t
 			listE[o-1][3] = t
 		oldY = draggedElementY
@@ -434,7 +441,7 @@ renderList = !->
 		log "-------redraw-----"
 		listE = []
 		offsetO = Obs.create({})
-		Db.shared.observeEach (item) !->
+		Db.shared.observeEach 'items', (item) !->
 			empty.set(!++count)
 			Obs.onClean !->
 				empty.set(!--count)
@@ -475,6 +482,8 @@ renderList = !->
 						Dom.style
 							fontSize: '30px'
 							color: "#999"
+							padding: "0px 8px"
+							marginLeft: "-8px"
 						Dom.text "≡"
 						DragToReorder itemRE, item.peek('order'), item.key()
 
@@ -484,13 +493,12 @@ renderList = !->
 							Flex: 1
 							Box: 'left middle'
 							padding: 0
-
 						Dom.div !->
 							Dom.style
 								boxSizing: 'border-box'
 								Box: 'middle'
 								Flex: 1
-								padding: '8px 4px 8px 12px'
+								padding: '8px 4px 8px 4px'
 								textDecoration: if item.get('completed') then 'line-through' else 'none'
 								color: if item.get('completed') then '#aaa' else 'inherit'
 								fontSize: '16px' #'21px'
@@ -502,7 +510,7 @@ renderList = !->
 									# whiteSpace: 'nowrap'
 									# textOverflow: 'ellipsis'
 									# width: '0px' #Firefox hack. But.. errrgh... whut?
-								Dom.userText item.get('text')
+								Dom.userText item.get('order') + " - " + item.get('text')
 								if notes = item.get('notes')
 									Dom.div !->
 										Dom.style

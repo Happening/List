@@ -43,7 +43,7 @@ exports.renderList = !->
 			@completed = dbRef.peek('completed')
 			@children = []
 			@treeLength = 1 # always yourself
-			@collapsed = false
+			@collapsed = Db.personal.peek 'collapsed', @key
 			@arrowO = Obs.create(0)
 			@offsetO = Obs.create(0)
 			item = this
@@ -172,17 +172,15 @@ exports.renderList = !->
 
 				Obs.observe !->
 					ad = item.arrowO.get()
-					log ad
 					if ad isnt 0
 						Dom.div !->
 							Icon.render
 								data: if ad is -1 then 'arrowup' else 'arrowdown'
 								color: '#999'
 
-						Dom.onTap !->
-							log item
-							log item.order
-							item.collapse(false, true)
+							Dom.onTap !->
+								log "toggling collapse"
+								item.collapse(false, true)
 
 				# Overflow menu
 				Form.vSep()
@@ -198,7 +196,6 @@ exports.renderList = !->
 			Form.sep()
 
 		seekChildren: !->
-			log "seekChildren", @order
 			@children = []
 			@treeLength = 1
 			return unless @order < items.length # if we are the last. We have no children.
@@ -215,22 +212,25 @@ exports.renderList = !->
 			if @treeLength > 1
 				@arrowO.set 1
 
-		collapse: (force = false, toggle = false) !->
+		collapse: (force = false, toggle = false, initial = false) !->
 			return unless @children.length #of no children, never do any of this
 			#either force it close, or restore it.
-			log "Collapse", @order, force, toggle, @collapse, @arrowO.peek()
+			log "Collapse", @order, force, toggle, @collapsed, @arrowO.peek()
 			collapsed = @collapsed
+			if initial and !collapsed then return
 			if force
 				collapsed = true #we are currently collapsed
 			else
 				#toggle state
 				if toggle
 					collapsed = @collapsed = !@collapsed
+					Server.send "collapse", @key, collapsed
 			@arrowO.set if collapsed then -1 else 1
 
 			height = 0
 			for c in @children
 				height += c.element.height()
+				log "collapsing child"
 				c.collapse(collapsed)
 				c.hide if collapsed then height else-1 # -1 unhides the item
 
@@ -242,7 +242,6 @@ exports.renderList = !->
 				@element.style display: 'inherit'
 
 		setOffset: (offset) !->
-			log "setting offset", @order, offset
 			@offsetO.set offset
 		getOffset: ->
 			@offsetO.peek()
@@ -308,6 +307,7 @@ exports.renderList = !->
 					oldY = element.getOffsetXY().y + (element.height()/2)
 					# Collapse if parent
 					# Collapse(elementO, elementId, elementD, 0)
+					log "forcing collapse"
 					item.collapse(true)
 
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
@@ -345,6 +345,8 @@ exports.renderList = !->
 					scrolling = 0
 					dragPosition = -1
 					element.style _transform: "translateY(0)"
+					log "restoring collapse"
+					item.collapse(false, false)
 			return false
 		,element
 
@@ -385,12 +387,12 @@ exports.renderList = !->
 				else
 					t = if trans < 0 then 0 else draggedElementHeight
 			if t == 0
-				log "normal"
+				# log "normal"
 				dragPosition = if draggedElement.order > item.order then item.order+1 else item.order-1
 			else
 				dragPosition = item.order
-				if t > 0 then log "down" else log "up"
-			log "dropped on:", dragPosition
+				# if t > 0 then log "down" else log "up"
+			# log "dropped on:", dragPosition
 			item.setOffset t
 		oldY = draggedElementY
 
@@ -461,9 +463,10 @@ exports.renderList = !->
 		#run through it again to look for children
 		Obs.observe !->
 			if redrawO.get()
-				log "---------------reseek-----------"
 				for i in items
 					i.seekChildren()
+				for i in items
+					i.collapse(false, false, true) # update collapse from Db.personal
 
 		Obs.observe !->
 			log 'empty now', empty.get()

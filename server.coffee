@@ -88,6 +88,10 @@ exports.client_assign = (id, user = Plugin.userId()) !->
 	else
 		Db.shared.set 'items', id, 'assigned', [user]
 
+exports.client_collapse = (key, value) !->
+	log "collapse", key, value
+	Db.personal(Plugin.userId()).set 'collapsed', key, value
+
 exports.client_resetOrder = !->
 	order = 0
 	Db.shared.forEach 'items', (item) !->

@@ -32,8 +32,6 @@ exports.renderList = !->
 
 	class Item
 		constructor: (@dbRef, @element) ->
-			# @dbRef = dbRef
-			# @element = element 
 			@key = dbRef.key()
 			@time = dbRef.peek('time')
 			@order = dbRef.peek('order')
@@ -285,7 +283,6 @@ exports.renderList = !->
 			if touches.length == 1
 				# drag element
 				draggedDelta = touches[0].y
-				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
 
 				if touches[0].op is 1
 					scrollDelta = Page.scroll()
@@ -297,6 +294,8 @@ exports.renderList = !->
 					oldY = element.getOffsetXY().y + (element.height()/2)
 					# Collapse if parent
 					# Collapse(elementO, elementId, elementD, 0)
+
+				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
 
 				onDrag()
 

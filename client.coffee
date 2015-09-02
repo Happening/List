@@ -89,25 +89,28 @@ renderItem = (itemId) !->
 				Dom.style
 					textAlign: 'center'
 					margin: '0px -4px'
-				for a in item.get('assigned')
-					Dom.div !->
-						Dom.style
-							display: 'inline-block'
-							textAlign: 'center'
-							position: 'relative'
-							padding: '2px'
-							# boxSizing: 'border-box'
-							# borderRadius: '2px'
-							# width: '60px'
-
-						Ui.avatar Plugin.userAvatar(a),
-							style:
+				if item.get("assigned") and item.get("assigned").length > 0
+					for a in item.get('assigned')
+						Dom.div !->
+							Dom.style
 								display: 'inline-block'
-								margin: '0 0 1px 0'
+								textAlign: 'center'
+								position: 'relative'
+								padding: '2px'
+								# boxSizing: 'border-box'
+								# borderRadius: '2px'
+								# width: '60px'
 
-						# Dom.div !->
-						# 	Dom.style fontSize: '18px'
-						# 	Dom.text Form.smileyToEmoji Plugin.userName(a)
+							Ui.avatar Plugin.userAvatar(a),
+								style:
+									display: 'inline-block'
+									margin: '0 0 1px 0'
+
+							# Dom.div !->
+							# 	Dom.style fontSize: '18px'
+							# 	Dom.text Form.smileyToEmoji Plugin.userName(a)
+				else
+					Dom.text tr("None assigned")
 				Dom.onTap !->
 					Modal.show tr("Assign members"), !->
 						Dom.style width: '80%', maxWidth: '400px'

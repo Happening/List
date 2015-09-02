@@ -18,10 +18,6 @@ dragScrollTreshold = 60 # in pixels
 exports.renderList = !->
 	mobile = Plugin.agent().ios or Plugin.agent().android
 	items = []
-	listE = []
-	offsetO = null
-	collapseO = null
-	collapseArrowO = null
 	oldY = 0
 	contentE = Dom.get()
 	contentHeight = 0
@@ -31,7 +27,6 @@ exports.renderList = !->
 	dragDirection = 0 # 1 for x, -1 for y
 	dragPosition = -1
 	draggedElement = null
-	draggedElementO = null
 	draggedDelta = 0
 	draggedElementY = 0
 
@@ -47,6 +42,9 @@ exports.renderList = !->
 			@notes = dbRef.peek('notes')
 			@assigned = dbRef.peek('assigned')
 			@completed = dbRef.peek('completed')
+			@children = []
+			@arrowO = Obs.create(0)
+			@offsetO = Obs.create(0)
 			item = this
 			Obs.observe !->
 				item.order = dbRef.get('order')
@@ -64,16 +62,15 @@ exports.renderList = !->
 
 			Dom.addClass "sortItem"
 			# offset for draggin
-			offsetO.set item.key, 0 # reset own offset when rendering
-			collapseO.set item.key, 0 # reset own offset when rendering
+			# item.offsetO.set 0 # reset own offset when rendering
+			# item.collapseO.set  0 # reset own offset when rendering
 			Dom.style
 				_transform: "translateY(#{'0px'})"
 			Obs.observe !->
-				log "offset observe", item.order
-				o = offsetO.get(item.key)
-				c = collapseO.get(item.key)
+				o = item.offsetO.get()
+				# c = collapseO.get(item.key)
+				c = 0
 				offset = o + c
-				# if listE[item.peek('order')] then listE[item.peek('order')][3] = offset
 				Dom.style _transform: "translateY(#{offset + 'px'})"
 				Dom.style display: if c then 'none' else 'inherit'
 
@@ -92,7 +89,7 @@ exports.renderList = !->
 					Icon.render
 						data: 'reorder'
 						color: '#999'
-					DragToReorder item.element, item.order, item.key
+					dragToReorder item
 
 				#checkbox for desktop
 				if !mobile
@@ -134,7 +131,6 @@ exports.renderList = !->
 								# whiteSpace: 'nowrap'
 								# textOverflow: 'ellipsis'
 								# width: '0px' #Firefox hack. But.. errrgh... whut?
-							log "Set Text:", item.text
 							Dom.userText item.order + " - " + item.text
 							if notes = item.notes
 								Dom.div !->
@@ -173,19 +169,19 @@ exports.renderList = !->
 									color: '#fff'
 								Dom.text assigned.length
 					Dom.onTap !->
-						log "ding"
 						Page.nav item.key
-					if mobile then DragToComplete itemDE, item.key
+					if mobile then item.dragToComplete itemDE
 
-				Dom.div !->
-					Obs.observe !->
-						ad = collapseArrowO.get(item.key)
-						Icon.render
-							data: if ad then 'arrowup' else 'arrowdown'
-							color: '#999'
+				Obs.observe !->
+					ad = item.arrowO.get()
+					if ad isnt 0
+						Dom.div !->
+							Icon.render
+								data: if ad is 1 then 'arrowup' else 'arrowdown'
+								color: '#999'
 
-					Dom.onTap !->
-						children = Collapse(item.order, item.key, item.depth, children)
+						Dom.onTap !->
+							item.collapse()
 
 				# Overflow menu
 				Form.vSep()
@@ -198,11 +194,79 @@ exports.renderList = !->
 						color: '#999'
 					Dom.onTap !->
 						Menu.renderMenu(item.key)
-				log "add to listE", item.order, item.key, item.text
 			Form.sep()
-			# listE.push [item.peek('order'), item.key(), itemRE, 0]
-			# order, db key, depth, Dom Element, trans, collapsetrans,
-			listE[item.order-1] = [item.order, item.key, item.depth, item.element, 0, 0]
+
+		seekChildren: !->
+			@children = []
+			return unless @order < items.length # if we are the last. We have no children.
+			for j in [@order..items.length-1]
+				i = items[j]
+				if i.depth is @depth+1
+					@children.push(i) # This makes a pointer right? Right?
+				else
+					if i.depth <= @depth
+						break # Lower or equal depth means not my child
+					if i.depth > @depth+1
+						continue # higher indent means this is a grandchild of me
+			if @children.length
+				@arrowO = 1
+
+		collapse: !->
+			log "Collapse", @key, @arrowO.peek()
+			collapsed = @arrowO.peek() #we are currently collapsed
+
+			height = 0
+			for c in @children
+				height += c.element.height()
+				c.collapse()
+				c.hide if collapsed < 0 then -1 else height # -1 unhides the item
+			@arrowO.modify (v) -> -v #flip
+
+		hide: (height) !->
+			log "Hide!", @order, height
+			if height >= 0
+				@element.style display: 'none'
+			else
+				@element.style display: 'inherit'
+
+		setOffset: (offset) !->
+			log "setting offset", @order, offset
+			@offsetO.set offset
+		getOffset: ->
+			@offsetO.peek()
+
+		dragToComplete: (element) !->
+			key = @key
+			# if mobile
+			Dom.trackTouch (touches...) ->
+				if dragDirection is -1
+					if touches.length == 1 and touches[0].op is 4 then dragDirection = 0
+					return true
+				if touches.length == 1
+					# determine direction
+					if dragDirection is 0
+						if touches[0].x isnt 0 or touches[0].y isnt 0
+							log touches[0].x, touches[0].y
+							if touches[0].y is 0 or Math.abs(touches[0].x)/Math.abs(touches[0].y)|0.1 > 3
+								dragDirection = 1
+								element.addClass "dragging"
+							else
+								dragDirection = -1
+								return true
+
+					element.style _transform: "translateX(#{touches[0].x + 'px'})"
+					if touches[0].op is 4 # touch is stopped
+						dragDirection = 0
+						if touches[0].x > swipeToCompleteTreshold # treshhold
+							Server.sync 'complete', key, true, !->
+								Db.shared.set key, 'completed', true
+						if touches[0].x < -swipeToCompleteTreshold # treshhold
+							Server.sync 'complete', key, false, !->
+								Db.shared.set key, 'completed', false
+						element.removeClass "dragging"
+						element.style _transform: "translateX(0px)"
+				return dragDirection < 1 # do default
+			, element
 
 	log "Make scrolling interval"
 	Obs.interval 25, !->
@@ -210,65 +274,13 @@ exports.renderList = !->
 		scrollDelta = Math.min(contentE.height()-(Page.height()-100), Math.max(0, scrollDelta + scrolling * 10))
 		Page.scroll(scrollDelta, false)
 		if draggedElement?
-			draggedElementY = draggedElement.getOffsetXY().y + draggedDelta + (draggedElement.height()/2) + scrollDelta - startScrollDelta
+			draggedElementY = draggedElement.element.getOffsetXY().y + draggedDelta + (draggedElement.element.height()/2) + scrollDelta - startScrollDelta
 			onDrag()
 
-	Collapse = (elementO, elementId, elementD, elementC) ->
-		log "Collapse", elementO, elementId, elementD, elementC
-		#	check if next in listE is indented
-		children = 0
-		if elementC is 0
-			if elementO < listE.length
-				++children
-				height = 0
-				log elementO
-				if listE[elementO][2] > elementD #Next in line is more indeted then I am. therefore, it must be my kiddo
-					height += listE[elementO][3].height()
-					collapseO.set listE[elementO][1], -height
-				collapseArrowO.set elementId, true
-			else
-				log "slected last element. no children"
-		else
-			for i in [elementO..elementO+elementC-1]
-				log i
-				collapseO.set listE[i][1], 0
-			collapseArrowO.set elementId, false
-		children
 
-
-	DragToComplete = (element, key) !->
-		# if mobile
-		Dom.trackTouch (touches...) ->
-			if dragDirection is -1
-				if touches.length == 1 and touches[0].op is 4 then dragDirection = 0
-				return true
-			if touches.length == 1
-				# determine direction
-				if dragDirection is 0
-					if touches[0].x isnt 0 or touches[0].y isnt 0
-						log touches[0].x, touches[0].y
-						if touches[0].y is 0 or Math.abs(touches[0].x)/Math.abs(touches[0].y)|0.1 > 3
-							dragDirection = 1
-							element.addClass "dragging"
-						else
-							dragDirection = -1
-							return true
-
-				element.style _transform: "translateX(#{touches[0].x + 'px'})"
-				if touches[0].op is 4 # touch is stopped
-					dragDirection = 0
-					if touches[0].x > swipeToCompleteTreshold # treshhold
-						Server.sync 'complete', key, true, !->
-							Db.shared.set key, 'completed', true
-					if touches[0].x < -swipeToCompleteTreshold # treshhold
-						Server.sync 'complete', key, false, !->
-							Db.shared.set key, 'completed', false
-					element.removeClass "dragging"
-					element.style _transform: "translateX(0px)"
-			return dragDirection < 1 # do default
-		, element
-
-	DragToReorder = (element, elementO, elementId, elementD) !->
+	dragToReorder = (item) !->
+		element = item.element
+		elementO = item.order
 		Dom.trackTouch (touches...) ->
 			if touches.length == 1
 				# drag element
@@ -279,13 +291,12 @@ exports.renderList = !->
 					scrollDelta = Page.scroll()
 					startScrollDelta = Page.scroll()
 					log scrollDelta, startScrollDelta
-					contentHeight = contentE.height()
+					contentHeight = element.height()
 					element.addClass "dragging"
-					draggedElement = element
-					draggedElementO = elementO
+					draggedElement = item
 					oldY = element.getOffsetXY().y + (element.height()/2)
 					# Collapse if parent
-					Collapse(elementO, elementId, elementD, 0)
+					# Collapse(elementO, elementId, elementD, 0)
 
 				onDrag()
 
@@ -304,20 +315,19 @@ exports.renderList = !->
 						Server.sync "reoder", elementO, dragPosition, !->
 							if elementO != dragPosition
 								if dragPosition > elementO
-									Db.shared.forEach 'item', (item) !->
-										if item.get('order') > elementO and item.get('order') <= dragPosition
-											item.incr 'order', -1
-										else if item.get('order') is elementO
-											item.set 'order', dragPosition
+									Db.shared.forEach 'item', (i) !->
+										if i.get('order') > elementO and i.get('order') <= dragPosition
+											i.incr 'order', -1
+										else if i.get('order') is elementO
+											i.set 'order', dragPosition
 								else
-									Db.shared.forEach 'item', (item) !->
-										if item.get('order') < elementO and item.get('order') >= dragPosition
-											item.incr 'order', 1
-										else if item.get('order') is elementO
-											item.set 'order', dragPosition
+									Db.shared.forEach 'item', (i) !->
+										if i.get('order') < elementO and i.get('order') >= dragPosition
+											i.incr 'order', 1
+										else if i.get('order') is elementO
+											i.set 'order', dragPosition
 					# reset lots of things
 					draggedElement = null
-					draggedElementO = null
 					scrolling = 0
 					dragPosition = -1
 					element.style _transform: "translateY(0)"
@@ -325,54 +335,49 @@ exports.renderList = !->
 		,element
 
 	onDrag = !->
-		return unless draggedElement and draggedElementO and draggedElementY isnt oldY
+		return unless draggedElement and draggedElement.order and draggedElementY isnt oldY
 
 		direction = draggedElementY > oldY
-		draggedElement.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
+		draggedElement.element.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
 
 		# check dragover
 		overElement = -1
 		i = null
-		# for [o, i, li, trans], j in listE
-		for val, j in listE
-			continue unless val #dealing with empty slots in the array
-			o = val[0]
-			i = val[1]
-			d = val[2]
-			li = val[3]
-			trans = val[4]
-			collapsed = val[5]
+		for item in items
+			continue unless item #dealing with empty slots in the array
+			continue unless item isnt draggedElement
+			li = item.element
+			trans = item.getOffset()
+			liHalf = li.height()/2
 
-			if li is draggedElement then continue
 			liY = li.getOffsetXY().y + trans
-			if draggedElementY > liY+li.height()/2 and oldY <= liY+li.height()/2
-				overElement = o
-				dragPosition = o
+			if draggedElementY > liY+liHalf and oldY <= liY+liHalf
+				overElement = item.order
+				dragPosition = item.order
 				break
-			else if draggedElementY < liY+li.height()/2 and oldY >= liY+li.height()/2
-				overElement = o
-				dragPosition = o-1
+			else if draggedElementY < liY+liHalf and oldY >= liY+liHalf
+				overElement = item.order
+				dragPosition = item.order-1
 				break
 		# move element out of the way
-		if overElement >= 0 and i
-			if overElement > draggedElementO
-				t = if direction and trans > 0 then 0 else draggedElement.height()
-				t = if !direction and trans < 0 then 0 else -draggedElement.height()
+		draggedElementHeight = draggedElement.element.height()
+		if overElement >= 0 and item.key
+			if overElement > draggedElement.order
+				t = if direction and trans > 0 then 0 else draggedElementHeight
+				t = if !direction and trans < 0 then 0 else -draggedElementHeight
 			else
 				if direction
-					t = if trans > 0 then 0 else -draggedElement.height()
+					t = if trans > 0 then 0 else -draggedElementHeight
 				else
-					t = if trans < 0 then 0 else draggedElement.height()
-			# log "set", o, i, t, trans, direction
+					t = if trans < 0 then 0 else draggedElementHeight
 			if t == 0
 				log "normal"
-				dragPosition = if draggedElementO > o then o+1 else o-1
+				dragPosition = if draggedElement.order > item.order then item.order+1 else item.order-1
 			else
-				dragPosition = o
+				dragPosition = item.order
 				if t > 0 then log "down" else log "up"
 			log "dropped on:", dragPosition
-			offsetO.set i, t
-			listE[o-1][4] = t
+			item.setOffset t
 		oldY = draggedElementY
 
 	Dom.style
@@ -422,10 +427,6 @@ exports.renderList = !->
 
 		# List of all items
 		log "-------Initial Draw-----"
-		listE = []
-		offsetO = Obs.create({})
-		collapseO = Obs.create({})
-		collapseArrowO = Obs.create({})
 		Db.shared.observeEach 'items', (item) !->
 			empty.set(!++count)
 			Obs.onClean !->
@@ -433,11 +434,16 @@ exports.renderList = !->
 
 			Dom.div !->
 				# Make a new item. It is also rendered here (called by its constructor)
-				items.push new Item(item, Dom.get())
+				newItem =  new Item(item, Dom.get())
+				items[newItem.order-1] = newItem
 		, (item) ->
 			item.get('order')
 			# if +item.key()
 			# 	-item.key() + (if item.peek('completed') then 1e9 else 0)
+
+		#run through it again to look for children
+		for i in items
+			i.seekChildren()
 
 		Obs.observe !->
 			log 'empty now', empty.get()

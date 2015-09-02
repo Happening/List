@@ -32,6 +32,7 @@ exports.renderList = !->
 
 	class Item
 		constructor: (@dbRef, @element) ->
+			log "constructor called"
 			@key = dbRef.key()
 			@time = dbRef.peek('time')
 			@order = dbRef.peek('order')
@@ -73,7 +74,6 @@ exports.renderList = !->
 				Dom.style display: if c then 'none' else 'inherit'
 
 			Dom.div !->
-				children = 0
 				Dom.addClass "sortItem"
 				itemDE = Dom.get()
 				Dom.style
@@ -150,9 +150,7 @@ exports.renderList = !->
 							position: 'relative'
 						assigned = item.assigned
 						if !assigned? or assigned.length is 0
-							# Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
-							# 	margin: '0 0 0 8px'
-							# 	opacity: 0.4
+							# Do nothing
 						else if assigned.length is 1
 							Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
 						else if assigned.length > 1
@@ -172,10 +170,11 @@ exports.renderList = !->
 
 				Obs.observe !->
 					ad = item.arrowO.get()
+					log ad
 					if ad isnt 0
 						Dom.div !->
 							Icon.render
-								data: if ad is 1 then 'arrowup' else 'arrowdown'
+								data: if ad is -1 then 'arrowup' else 'arrowdown'
 								color: '#999'
 
 						Dom.onTap !->
@@ -195,6 +194,7 @@ exports.renderList = !->
 			Form.sep()
 
 		seekChildren: !->
+			log "seekChildren", @order
 			@children = []
 			return unless @order < items.length # if we are the last. We have no children.
 			for j in [@order..items.length-1]
@@ -207,7 +207,7 @@ exports.renderList = !->
 					if i.depth > @depth+1
 						continue # higher indent means this is a grandchild of me
 			if @children.length
-				@arrowO = 1
+				@arrowO.set 1
 
 		collapse: !->
 			log "Collapse", @key, @arrowO.peek()
@@ -218,7 +218,9 @@ exports.renderList = !->
 				height += c.element.height()
 				c.collapse()
 				c.hide if collapsed < 0 then -1 else height # -1 unhides the item
-			@arrowO.modify (v) -> -v #flip
+			@arrowO.modify (v) ->
+				-v
+			log "arrowO:", @order, @arrowO.peek()
 
 		hide: (height) !->
 			log "Hide!", @order, height
@@ -294,6 +296,7 @@ exports.renderList = !->
 					oldY = element.getOffsetXY().y + (element.height()/2)
 					# Collapse if parent
 					# Collapse(elementO, elementId, elementD, 0)
+					item.collapse()
 
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
 
@@ -423,6 +426,7 @@ exports.renderList = !->
 
 		count = 0
 		empty = Obs.create(true)
+		redrawO = Obs.create(0)
 
 		# List of all items
 		log "-------Initial Draw-----"
@@ -430,6 +434,8 @@ exports.renderList = !->
 			empty.set(!++count)
 			Obs.onClean !->
 				empty.set(!--count)
+
+			redrawO.incr()
 
 			Dom.div !->
 				# Make a new item. It is also rendered here (called by its constructor)
@@ -441,8 +447,11 @@ exports.renderList = !->
 			# 	-item.key() + (if item.peek('completed') then 1e9 else 0)
 
 		#run through it again to look for children
-		for i in items
-			i.seekChildren()
+		Obs.observe !->
+			if redrawO.get()
+				log "---------------reseek-----------"
+				for i in items
+					i.seekChildren()
 
 		Obs.observe !->
 			log 'empty now', empty.get()

@@ -14,6 +14,7 @@ Ui = require 'ui'
 {tr} = require 'i18n'
 
 exports.renderMenu = (key) !->
+	key = parseInt(key)
 	Modal.show tr("Options"), !->
 		Dom.style width: '80%', maxWidth: '400px'
 		Dom.div !->
@@ -60,6 +61,13 @@ exports.renderMenu = (key) !->
 							data: 'add'
 							color: '#444'
 							style: {marginRight: '-4px'}
+					Dom.onTap !->
+						Modal.prompt tr("Add subitem")
+						, (value) !->
+							Server.sync 'add', value, key, !->
+								id = Db.shared.incr 'maxId'
+								Db.shared.set('items', id, {time:0, by:Plugin.userId(), text: value.trim(), order: 1, parent: key})
+							Modal.remove()
 
 				if Plugin.userId() is Db.shared.peek('items', key, 'by') or Plugin.userIsAdmin()
 					Ui.item !->

@@ -15,10 +15,21 @@ swipeToCompleteTreshold = 50 # in pixels
 swipeToCompleteRespondTreshold = 5 # in pixels applied on Y axis!
 dragScrollTreshold = 60 # in pixels
 
+class Item
+	constructor: (dbRef) ->
+		@order
+		@key
+
+
+
+MakeObjects out of the element. listE is a mess
+
 exports.renderList = !->
 	mobile = Plugin.agent().ios or Plugin.agent().android
 	listE = []
 	offsetO = null
+	collapseO = null
+	collapseArrowO = null
 	oldY = 0
 	contentE = Dom.get()
 	contentHeight = 0
@@ -40,6 +51,29 @@ exports.renderList = !->
 		if draggedElement?
 			draggedElementY = draggedElement.getOffsetXY().y + draggedDelta + (draggedElement.height()/2) + scrollDelta - startScrollDelta
 			onDrag()
+
+	Collapse = (elementO, elementId, elementD, elementC) ->
+		log "Collapse", elementO, elementId, elementD, elementC
+		#	check if next in listE is indented
+		children = 0
+		if elementC is 0
+			if elementO < listE.length
+				++children
+				height = 0
+				log elementO
+				if listE[elementO][2] > elementD #Next in line is more indeted then I am. therefore, it must be my kiddo
+					height += listE[elementO][3].height()
+					collapseO.set listE[elementO][1], -height
+				collapseArrowO.set elementId, true
+			else
+				log "slected last element. no children"
+		else
+			for i in [elementO..elementO+elementC-1]
+				log i
+				collapseO.set listE[i][1], 0
+			collapseArrowO.set elementId, false
+		children
+
 
 	DragToComplete = (element, key) !->
 		# if mobile
@@ -73,7 +107,7 @@ exports.renderList = !->
 			return dragDirection < 1 # do default
 		, element
 
-	DragToReorder = (element, elementO, elementId) !->
+	DragToReorder = (element, elementO, elementId, elementD) !->
 		Dom.trackTouch (touches...) ->
 			if touches.length == 1
 				# drag element
@@ -88,8 +122,9 @@ exports.renderList = !->
 					element.addClass "dragging"
 					draggedElement = element
 					draggedElementO = elementO
-					# oldY = draggedElementY
 					oldY = element.getOffsetXY().y + (element.height()/2)
+					# Collapse if parent
+					Collapse(elementO, elementId, elementD, 0)
 
 				onDrag()
 
@@ -103,25 +138,27 @@ exports.renderList = !->
 
 				if touches[0].op is 4 # touch is stopped
 					element.removeClass "dragging"
-					log "Done. Write to order"
-					Server.sync "reoder", elementO, dragPosition, !->
-						if elementO != dragPosition
-							if dragPosition > elementO
-								Db.shared.forEach 'item', (item) !->
-									if item.get('order') > elementO and item.get('order') <= dragPosition
-										item.incr 'order', -1
-									else if item.get('order') is elementO
-										item.set 'order', dragPosition
-							else
-								Db.shared.forEach 'item', (item) !->
-									if item.get('order') < elementO and item.get('order') >= dragPosition
-										item.incr 'order', 1
-									else if item.get('order') is elementO
-										item.set 'order', dragPosition
+					if dragPosition > 0
+						log "Done. Write to order"
+						Server.sync "reoder", elementO, dragPosition, !->
+							if elementO != dragPosition
+								if dragPosition > elementO
+									Db.shared.forEach 'item', (item) !->
+										if item.get('order') > elementO and item.get('order') <= dragPosition
+											item.incr 'order', -1
+										else if item.get('order') is elementO
+											item.set 'order', dragPosition
+								else
+									Db.shared.forEach 'item', (item) !->
+										if item.get('order') < elementO and item.get('order') >= dragPosition
+											item.incr 'order', 1
+										else if item.get('order') is elementO
+											item.set 'order', dragPosition
 					# reset lots of things
 					draggedElement = null
 					draggedElementO = null
 					scrolling = 0
+					dragPosition = -1
 					element.style _transform: "translateY(0)"
 			return false
 		,element
@@ -140,8 +177,10 @@ exports.renderList = !->
 			continue unless val #dealing with empty slots in the array
 			o = val[0]
 			i = val[1]
-			li = val[2]
-			trans = val[3]
+			d = val[2]
+			li = val[3]
+			trans = val[4]
+			collapsed = val[5]
 
 			if li is draggedElement then continue
 			liY = li.getOffsetXY().y + trans
@@ -172,7 +211,7 @@ exports.renderList = !->
 				if t > 0 then log "down" else log "up"
 			log "dropped on:", dragPosition
 			offsetO.set i, t
-			listE[o-1][3] = t
+			listE[o-1][4] = t
 		oldY = draggedElementY
 
 	Dom.style
@@ -190,7 +229,8 @@ exports.renderList = !->
 				return if !addE.value().trim()
 				Server.sync 'add', addE.value().trim(), !->
 					id = Db.shared.incr 'maxId'
-					Db.shared.set(id, {time:0, by:Plugin.userId(), text: addE.value().trim()})
+					Db.shared.set('items', id, {time:0, by:Plugin.userId(), text: addE.value().trim()})
+					# Sigh, and do order stuff...
 				addE.value ""
 				editingItem.set(false)
 				Form.blur()
@@ -223,135 +263,15 @@ exports.renderList = !->
 		log "-------redraw-----"
 		listE = []
 		offsetO = Obs.create({})
+		collapseO = Obs.create({})
+		collapseArrowO = Obs.create({})
 		Db.shared.observeEach 'items', (item) !->
 			empty.set(!++count)
 			Obs.onClean !->
 				empty.set(!--count)
 
-			Dom.div !->
-				itemRE = Dom.get()
-				Dom.addClass "sortItem"
-				# offset for draggin
-				offsetO.set item.key(), 0 # reset own offset when rendering
-				Dom.style _transform: "translateY(#{'0px'})"
-				Obs.observe !->
-					offset = offsetO.get item.key()
-					# if listE[item.peek('order')] then listE[item.peek('order')][3] = offset
-					Dom.style _transform: "translateY(#{offset + 'px'})"
-
-				Dom.div !->
-					Dom.addClass "sortItem"
-					itemDE = Dom.get()
-					Dom.style
-						minHeight: '50px'
-						Box: 'middle'
-					# Rearrange icon
-					Dom.div !->
-						Dom.style
-							padding: "0px 8px"
-							marginLeft: "-8px"
-						Icon.render
-							data: 'reorder'
-							color: '#999'
-						DragToReorder itemRE, item.peek('order'), item.key()
-
-					#checkbox for desktop
-					if !mobile
-						Dom.div !->
-							Dom.style Box: 'center middle'
-							Form.vSep()
-							item.get('completed')
-								# temp fix for problems arising from marking completed in edit item screen
-							Form.check
-								value: item.func('completed')
-								inScope: !->
-									Dom.style padding: '28px 32px 28px 14px'
-								onChange: (v) !->
-									Server.sync 'complete', item.key(), v, !->
-										item.set('completed', v)
-							Form.vSep()
-
-
-					# Content and avatar
-					Dom.div !->
-						Dom.style
-							Flex: 1
-							Box: 'left middle'
-							padding: 0
-						Dom.div !->
-							Dom.style
-								boxSizing: 'border-box'
-								Box: 'middle'
-								Flex: 1
-								padding: '8px 4px 8px 4px'
-								textDecoration: if item.get('completed') then 'line-through' else 'none'
-								color: if item.get('completed') then '#aaa' else 'inherit'
-								fontSize: '16px' #'21px'
-							Dom.div !->
-								Dom.style
-									Flex: 1
-									color: (if Event.isNew(item.get('time')) then '#5b0' else 'inherit')
-									# overflow: 'hidden'
-									# whiteSpace: 'nowrap'
-									# textOverflow: 'ellipsis'
-									# width: '0px' #Firefox hack. But.. errrgh... whut?
-								Dom.userText item.get('order') + " - " + item.get('text')
-								if notes = item.get('notes')
-									Dom.div !->
-										Dom.style
-											color: '#aaa'
-											whiteSpace: 'nowrap'
-											fontSize: '80%'
-											fontWeight: 'normal'
-											overflow: 'hidden'
-											textOverflow: 'ellipsis'
-										Dom.text notes
-							Dom.div !->
-								Event.renderBubble [item.key()]
-						Dom.div !->
-							Dom.style
-								marginRight: '4px'
-								# height: '60px'
-								# Box: 'middle'
-								position: 'relative'
-							assigned = item.get('assigned')
-							if !assigned? or assigned.length is 0
-								# Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
-								# 	margin: '0 0 0 8px'
-								# 	opacity: 0.4
-							else if assigned.length is 1
-								Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
-							else if assigned.length > 1
-								Ui.avatar '#666', size: 30, style: margin: '0 0 0 8px'
-								Dom.div !->
-									Dom.style
-										position: 'absolute'
-										top: '10px'
-										width: '100%'
-										marginLeft: '4px'
-										textAlign: 'center'
-										color: '#fff'
-									Dom.text assigned.length
-						Dom.onTap !->
-							log "ding"
-							Page.nav item.key()
-						if mobile then DragToComplete itemDE, item.key()
-
-					# Overflow menu
-					Form.vSep()
-					Dom.last().style margin: '0px'
-					Dom.div !->
-						Dom.style
-							padding: '8px'
-						Icon.render
-							data: 'more'
-							color: '#999'
-						Dom.onTap !->
-							Menu.renderMenu(item.key())
-					log "add to listE", item.peek('order'), item.key(), item.peek('text')
-				Form.sep()
-				# listE.push [item.peek('order'), item.key(), itemRE, 0]
-				listE[item.peek('order')-1] = [item.peek('order'), item.key(), itemRE, 0]
+			items.push new item(item)
+			items.render()
 		, (item) ->
 			item.get('order')
 			# if +item.key()

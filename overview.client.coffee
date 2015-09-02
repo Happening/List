@@ -42,6 +42,8 @@ exports.renderList = !->
 			@assigned = dbRef.peek('assigned')
 			@completed = dbRef.peek('completed')
 			@children = []
+			@treeLength = 1 # always yourself
+			@collapsed = false
 			@arrowO = Obs.create(0)
 			@offsetO = Obs.create(0)
 			item = this
@@ -178,7 +180,9 @@ exports.renderList = !->
 								color: '#999'
 
 						Dom.onTap !->
-							item.collapse()
+							log item
+							log item.order
+							item.collapse(false, true)
 
 				# Overflow menu
 				Form.vSep()
@@ -196,31 +200,39 @@ exports.renderList = !->
 		seekChildren: !->
 			log "seekChildren", @order
 			@children = []
+			@treeLength = 1
 			return unless @order < items.length # if we are the last. We have no children.
 			for j in [@order..items.length-1]
 				i = items[j]
 				if i.depth is @depth+1
 					@children.push(i) # This makes a pointer right? Right?
+					++@treeLength
 				else
-					if i.depth <= @depth
-						break # Lower or equal depth means not my child
-					if i.depth > @depth+1
-						continue # higher indent means this is a grandchild of me
-			if @children.length
+					if i.depth <= @depth # Lower or equal depth means not my child
+						break
+					if i.depth > @depth+1 # higher indent means this is a grandchild of me
+						++@treeLength
+			if @treeLength > 1
 				@arrowO.set 1
 
-		collapse: !->
-			log "Collapse", @key, @arrowO.peek()
-			collapsed = @arrowO.peek() #we are currently collapsed
+		collapse: (force = false, toggle = false) !->
+			return unless @children.length #of no children, never do any of this
+			#either force it close, or restore it.
+			log "Collapse", @order, force, toggle, @collapse, @arrowO.peek()
+			collapsed = @collapsed
+			if force
+				collapsed = true #we are currently collapsed
+			else
+				#toggle state
+				if toggle
+					collapsed = @collapsed = !@collapsed
+			@arrowO.set if collapsed then -1 else 1
 
 			height = 0
 			for c in @children
 				height += c.element.height()
-				c.collapse()
-				c.hide if collapsed < 0 then -1 else height # -1 unhides the item
-			@arrowO.modify (v) ->
-				-v
-			log "arrowO:", @order, @arrowO.peek()
+				c.collapse(collapsed)
+				c.hide if collapsed then height else-1 # -1 unhides the item
 
 		hide: (height) !->
 			log "Hide!", @order, height
@@ -296,7 +308,7 @@ exports.renderList = !->
 					oldY = element.getOffsetXY().y + (element.height()/2)
 					# Collapse if parent
 					# Collapse(elementO, elementId, elementD, 0)
-					item.collapse()
+					item.collapse(true)
 
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
 
@@ -313,8 +325,8 @@ exports.renderList = !->
 				if touches[0].op is 4 # touch is stopped
 					element.removeClass "dragging"
 					if dragPosition > 0
-						log "Done. Write to order"
-						Server.sync "reoder", elementO, dragPosition, !->
+						log "Done. Send reorder to server"
+						Server.sync "reoder", elementO, dragPosition, item.treeLength, !->
 							if elementO != dragPosition
 								if dragPosition > elementO
 									Db.shared.forEach 'item', (i) !->
@@ -469,6 +481,8 @@ exports.renderList = !->
 			margin: '20px'
 			color: '#999'
 		Dom.text tr("Swipe an item left to check it, and to the right to uncheck it")
+	Ui.bigButton "reset order", !->
+		Server.call "resetOrder"
 
 Dom.css
 	".sortItem.dragging":

@@ -59,21 +59,21 @@ exports.client_complete = (id, value) !->
 	if Db.shared.get('items', id)
 		Db.shared.set 'items', id, 'completed', !!value
 
-exports.client_reoder = (id, pos) !->
-	log "reorder", id, pos
+exports.client_reoder = (id, pos, length = 1) !->
 	if id == pos then return
+	delta = pos-id
 	if pos > id
 		Db.shared.forEach 'items', (item) !->
-			if item.get('order') > id and item.get('order') <= pos
-				item.incr 'order', -1
-			else if item.get('order') is id
-				item.set 'order', pos
+			if item.get('order') > id+length-1 and item.get('order') <= pos
+				item.incr 'order', -length
+			else if item.get('order') >= id and item.get('order') < pos
+				item.incr 'order', delta-(length-1)
 	else
 		Db.shared.forEach 'items', (item) !->
 			if item.get('order') < id and item.get('order') >= pos
-				item.incr 'order', 1
-			else if item.get('order') is id
-				item.set 'order', pos
+				item.incr 'order', length
+			else if item.get('order') >= id and item.get('order') < id+length
+				item.incr 'order', delta
 
 exports.client_assign = (id, user = Plugin.userId()) !->
 	log "assigneing", id, user
@@ -87,3 +87,9 @@ exports.client_assign = (id, user = Plugin.userId()) !->
 			# Db.shared.set id, 'assigned', user
 	else
 		Db.shared.set 'items', id, 'assigned', [user]
+
+exports.client_resetOrder = !->
+	order = 0
+	Db.shared.forEach 'items', (item) !->
+		item.set 'order', ++order
+		log "item set to " + order

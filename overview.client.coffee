@@ -15,17 +15,9 @@ swipeToCompleteTreshold = 50 # in pixels
 swipeToCompleteRespondTreshold = 5 # in pixels applied on Y axis!
 dragScrollTreshold = 60 # in pixels
 
-class Item
-	constructor: (dbRef) ->
-		@order
-		@key
-
-
-
-MakeObjects out of the element. listE is a mess
-
 exports.renderList = !->
 	mobile = Plugin.agent().ios or Plugin.agent().android
+	items = []
 	listE = []
 	offsetO = null
 	collapseO = null
@@ -42,6 +34,175 @@ exports.renderList = !->
 	draggedElementO = null
 	draggedDelta = 0
 	draggedElementY = 0
+
+	class Item
+		constructor: (@dbRef, @element) ->
+			# @dbRef = dbRef
+			# @element = element 
+			@key = dbRef.key()
+			@time = dbRef.peek('time')
+			@order = dbRef.peek('order')
+			@depth = dbRef.peek('depth')
+			@text = dbRef.peek('text')
+			@notes = dbRef.peek('notes')
+			@assigned = dbRef.peek('assigned')
+			@completed = dbRef.peek('completed')
+			item = this
+			Obs.observe !->
+				item.order = dbRef.get('order')
+				item.depth = dbRef.get('depth')
+				item.text = dbRef.get('text')
+				item.notes = dbRef.get('notes')
+				item.assigned = dbRef.get('assigned')
+				item.completed = dbRef.get('completed')
+				# just rerender when one of the above attributes change...
+				item.render()
+
+		render: ->
+			item = this # zucht. bijna goed dit.
+			log "(Re-)rendering", @order, @key, @text
+
+			Dom.addClass "sortItem"
+			# offset for draggin
+			offsetO.set item.key, 0 # reset own offset when rendering
+			collapseO.set item.key, 0 # reset own offset when rendering
+			Dom.style
+				_transform: "translateY(#{'0px'})"
+			Obs.observe !->
+				log "offset observe", item.order
+				o = offsetO.get(item.key)
+				c = collapseO.get(item.key)
+				offset = o + c
+				# if listE[item.peek('order')] then listE[item.peek('order')][3] = offset
+				Dom.style _transform: "translateY(#{offset + 'px'})"
+				Dom.style display: if c then 'none' else 'inherit'
+
+			Dom.div !->
+				children = 0
+				Dom.addClass "sortItem"
+				itemDE = Dom.get()
+				Dom.style
+					minHeight: '50px'
+					Box: 'middle'
+				# Rearrange icon
+				Dom.div !->
+					Dom.style
+						padding: "0px 8px"
+						marginLeft: "-8px"
+					Icon.render
+						data: 'reorder'
+						color: '#999'
+					DragToReorder item.element, item.order, item.key
+
+				#checkbox for desktop
+				if !mobile
+					Dom.div !->
+						Dom.style Box: 'center middle'
+						Form.vSep()
+						item.completed
+							# temp fix for problems arising from marking completed in edit item screen
+						Form.check
+							value: item.completed
+							inScope: !->
+								Dom.style padding: '28px 32px 28px 14px'
+							onChange: (v) !->
+								Server.sync 'complete', item.key, v, !->
+									Db.shared.set('items', item.key, 'completed', v)
+						Form.vSep()
+
+
+				# Content and avatar
+				Dom.div !->
+					Dom.style
+						Flex: 1
+						Box: 'left middle'
+						padding: "0 0 0 #{item.depth*15}" # reactive
+					Dom.div !->
+						Dom.style
+							boxSizing: 'border-box'
+							Box: 'middle'
+							Flex: 1
+							padding: '8px 4px 8px 4px'
+							textDecoration: if item.completed then 'line-through' else 'none'
+							color: if item.completed then '#aaa' else 'inherit'
+							fontSize: '16px' #'21px'
+						Dom.div !->
+							Dom.style
+								Flex: 1
+								color: (if Event.isNew(item.time) then '#5b0' else 'inherit')
+								# overflow: 'hidden'
+								# whiteSpace: 'nowrap'
+								# textOverflow: 'ellipsis'
+								# width: '0px' #Firefox hack. But.. errrgh... whut?
+							log "Set Text:", item.text
+							Dom.userText item.order + " - " + item.text
+							if notes = item.notes
+								Dom.div !->
+									Dom.style
+										color: '#aaa'
+										whiteSpace: 'nowrap'
+										fontSize: '80%'
+										fontWeight: 'normal'
+										overflow: 'hidden'
+										textOverflow: 'ellipsis'
+									Dom.text notes
+						Dom.div !->
+							Event.renderBubble [item.key]
+					Dom.div !->
+						Dom.style
+							marginRight: '4px'
+							# height: '60px'
+							# Box: 'middle'
+							position: 'relative'
+						assigned = item.assigned
+						if !assigned? or assigned.length is 0
+							# Ui.avatar Plugin.userAvatar(Plugin.userId()), size: 30, style: 
+							# 	margin: '0 0 0 8px'
+							# 	opacity: 0.4
+						else if assigned.length is 1
+							Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
+						else if assigned.length > 1
+							Ui.avatar '#666', size: 30, style: margin: '0 0 0 8px'
+							Dom.div !->
+								Dom.style
+									position: 'absolute'
+									top: '10px'
+									width: '100%'
+									marginLeft: '4px'
+									textAlign: 'center'
+									color: '#fff'
+								Dom.text assigned.length
+					Dom.onTap !->
+						log "ding"
+						Page.nav item.key
+					if mobile then DragToComplete itemDE, item.key
+
+				Dom.div !->
+					Obs.observe !->
+						ad = collapseArrowO.get(item.key)
+						Icon.render
+							data: if ad then 'arrowup' else 'arrowdown'
+							color: '#999'
+
+					Dom.onTap !->
+						children = Collapse(item.order, item.key, item.depth, children)
+
+				# Overflow menu
+				Form.vSep()
+				Dom.last().style margin: '0px'
+				Dom.div !->
+					Dom.style
+						padding: '8px'
+					Icon.render
+						data: 'more'
+						color: '#999'
+					Dom.onTap !->
+						Menu.renderMenu(item.key)
+				log "add to listE", item.order, item.key, item.text
+			Form.sep()
+			# listE.push [item.peek('order'), item.key(), itemRE, 0]
+			# order, db key, depth, Dom Element, trans, collapsetrans,
+			listE[item.order-1] = [item.order, item.key, item.depth, item.element, 0, 0]
 
 	log "Make scrolling interval"
 	Obs.interval 25, !->
@@ -260,7 +421,7 @@ exports.renderList = !->
 		empty = Obs.create(true)
 
 		# List of all items
-		log "-------redraw-----"
+		log "-------Initial Draw-----"
 		listE = []
 		offsetO = Obs.create({})
 		collapseO = Obs.create({})
@@ -270,8 +431,9 @@ exports.renderList = !->
 			Obs.onClean !->
 				empty.set(!--count)
 
-			items.push new item(item)
-			items.render()
+			Dom.div !->
+				# Make a new item. It is also rendered here (called by its constructor)
+				items.push new Item(item, Dom.get())
 		, (item) ->
 			item.get('order')
 			# if +item.key()

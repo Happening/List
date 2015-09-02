@@ -10,6 +10,7 @@ Server = require 'server'
 Ui = require 'ui'
 {tr} = require 'i18n'
 Menu = require 'menu'
+SF = require 'serverFunctions'
 
 swipeToCompleteTreshold = 50 # in pixels
 swipeToCompleteRespondTreshold = 5 # in pixels applied on Y axis!
@@ -198,16 +199,20 @@ exports.renderList = !->
 		seekChildren: !->
 			@children = []
 			@treeLength = 1
+			log "seeking", @order, @text
 			return unless @order < items.length # if we are the last. We have no children.
 			for j in [@order..items.length-1]
 				i = items[j]
 				if i.depth is @depth+1
+					log "Adding", i.order, i.text
 					@children.push(i) # This makes a pointer right? Right?
 					++@treeLength
 				else
 					if i.depth <= @depth # Lower or equal depth means not my child
+						log "lower or equal", i.order, i.text
 						break
 					if i.depth > @depth+1 # higher indent means this is a grandchild of me
+						log "grandchild", i.order, i.text
 						++@treeLength
 			if @treeLength > 1
 				@arrowO.set 1
@@ -326,20 +331,8 @@ exports.renderList = !->
 					element.removeClass "dragging"
 					if dragPosition > 0
 						log "Done. Send reorder to server"
-						Server.sync "reoder", elementO, dragPosition, item.treeLength, !->
-							if elementO != dragPosition
-								if dragPosition > elementO
-									Db.shared.forEach 'item', (i) !->
-										if i.get('order') > elementO and i.get('order') <= dragPosition
-											i.incr 'order', -1
-										else if i.get('order') is elementO
-											i.set 'order', dragPosition
-								else
-									Db.shared.forEach 'item', (i) !->
-										if i.get('order') < elementO and i.get('order') >= dragPosition
-											i.incr 'order', 1
-										else if i.get('order') is elementO
-											i.set 'order', dragPosition
+						Server.sync "reorder", elementO, dragPosition, item.treeLength, !->
+							SF.reorder elementO, dragPosition, item.treeLength
 					# reset lots of things
 					draggedElement = null
 					scrolling = 0
@@ -463,6 +456,7 @@ exports.renderList = !->
 		#run through it again to look for children
 		Obs.observe !->
 			if redrawO.get()
+				log "Redraw observe, do children and collapse"
 				for i in items
 					i.seekChildren()
 				for i in items

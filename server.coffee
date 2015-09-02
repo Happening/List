@@ -1,37 +1,12 @@
 Db = require 'db'
 Plugin = require 'plugin'
 Event = require 'event'
+SF = require 'serverFunctions'
 
 # Onupgrade, move all items to 'items' and give them an order and depth of 0
 
 exports.client_add = (text, parent) !->
-
-	# make new item and write
-	o = 1
-	if parent
-		o = Db.shared.get('items', parent, 'order')+1
-		d = Db.shared.get('items', parent, 'depth')+1
-		item =
-			text: text
-			time: 0|(new Date()/1000)
-			by: Plugin.userId()
-			order: o
-			depth: d
-	else
-		item =
-			text: text
-			time: 0|(new Date()/1000)
-			by: Plugin.userId()
-			order: o
-			depth: 0
-
-	# reorder to make room
-	Db.shared.forEach 'items', (item) !->
-		if item.get('order') >=o
-			item.incr 'order', 1
-
-	maxId = Db.shared.incr('maxId')
-	Db.shared.set('items', maxId, item)
+	SF.add(text, parent, Plugin.userId())
 
 	name = Plugin.userName()
 	if parent
@@ -52,28 +27,20 @@ exports.client_setText = (id, text) !->
 
 exports.client_remove = (id) !->
 	return if Plugin.userId() isnt Db.shared.get('items', id, 'by') and !Plugin.userIsAdmin()
+	o = Db.shared.get('items', id, 'order')
 	Db.shared.remove('items', id)
+	#reorder stuff
+	Db.shared.forEach 'items', (item) !->
+		if item.get('order') >o
+			item.incr 'order', -1
 
 exports.client_complete = (id, value) !->
 	log "setting completed", id
 	if Db.shared.get('items', id)
 		Db.shared.set 'items', id, 'completed', !!value
 
-exports.client_reoder = (id, pos, length = 1) !->
-	if id == pos then return
-	delta = pos-id
-	if pos > id
-		Db.shared.forEach 'items', (item) !->
-			if item.get('order') > id+length-1 and item.get('order') <= pos
-				item.incr 'order', -length
-			else if item.get('order') >= id and item.get('order') < pos
-				item.incr 'order', delta-(length-1)
-	else
-		Db.shared.forEach 'items', (item) !->
-			if item.get('order') < id and item.get('order') >= pos
-				item.incr 'order', length
-			else if item.get('order') >= id and item.get('order') < id+length
-				item.incr 'order', delta
+exports.client_reorder = (id, pos, length = 1) !->
+	SF.reorder id, pos, length
 
 exports.client_assign = (id, user = Plugin.userId()) !->
 	log "assigneing", id, user

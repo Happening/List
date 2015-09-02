@@ -12,6 +12,7 @@ Social = require 'social'
 Time = require 'time'
 Ui = require 'ui'
 {tr} = require 'i18n'
+SF = require 'serverFunctions'
 
 exports.renderMenu = (key) !->
 	key = parseInt(key)
@@ -65,8 +66,7 @@ exports.renderMenu = (key) !->
 						Modal.prompt tr("Add subitem")
 						, (value) !->
 							Server.sync 'add', value, key, !->
-								id = Db.shared.incr 'maxId'
-								Db.shared.set('items', id, {time:0, by:Plugin.userId(), text: value.trim(), order: 1, parent: key})
+								SF.add(value, key, Plugin.userId())
 							Modal.remove()
 
 				if Plugin.userId() is Db.shared.peek('items', key, 'by') or Plugin.userIsAdmin()
@@ -79,8 +79,12 @@ exports.renderMenu = (key) !->
 							color: '#444'
 						Dom.onTap !->
 							Modal.confirm null, tr("Are you sure you want to delete this item?"), !->
-								Server.sync 'remove', key, !->
-									Db.shared.remove 'items', key
+								o = Db.shared.peek('items', id, 'order')
+								Db.shared.remove('items', id)
+								# reorder stuff
+								Db.shared.forEach 'items', (item) !->
+									if item.get('order') >o
+										item.incr 'order', -1
 								Modal.remove()
 
 				Dom.h4 tr("Assign to")

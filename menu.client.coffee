@@ -14,7 +14,7 @@ Ui = require 'ui'
 {tr} = require 'i18n'
 SF = require 'serverFunctions'
 
-exports.renderMenu = (key) !->
+exports.renderMenu = (key, children) !->
 	key = parseInt(key)
 	Modal.show tr("Options"), !->
 		Dom.style width: '80%', maxWidth: '400px'
@@ -79,12 +79,8 @@ exports.renderMenu = (key) !->
 							color: '#444'
 						Dom.onTap !->
 							Modal.confirm null, tr("Are you sure you want to delete this item?"), !->
-								o = Db.shared.peek('items', id, 'order')
-								Db.shared.remove('items', id)
-								# reorder stuff
-								Db.shared.forEach 'items', (item) !->
-									if item.get('order') >o
-										item.incr 'order', -1
+								Server.sync 'remove', key, children, !->
+									SF.remove(key, children)
 								Modal.remove()
 
 				Dom.h4 tr("Assign to")

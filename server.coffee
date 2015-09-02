@@ -25,14 +25,9 @@ exports.client_edit = (itemId, values) !->
 exports.client_setText = (id, text) !->
 	Db.shared.set('items', id, 'text', text)
 
-exports.client_remove = (id) !->
+exports.client_remove = (id, children) !->
 	return if Plugin.userId() isnt Db.shared.get('items', id, 'by') and !Plugin.userIsAdmin()
-	o = Db.shared.get('items', id, 'order')
-	Db.shared.remove('items', id)
-	#reorder stuff
-	Db.shared.forEach 'items', (item) !->
-		if item.get('order') >o
-			item.incr 'order', -1
+	SF.remove(id, children)
 
 exports.client_complete = (id, value) !->
 	log "setting completed", id

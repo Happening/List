@@ -33,7 +33,6 @@ exports.renderList = !->
 
 	class Item
 		constructor: (@dbRef, @element) ->
-			log "constructor called"
 			@key = dbRef.key()
 			@time = dbRef.peek('time')
 			@order = dbRef.peek('order')
@@ -60,7 +59,7 @@ exports.renderList = !->
 
 		render: ->
 			item = this # zucht. bijna goed dit.
-			log "(Re-)rendering", @order, @key, @text
+			# log "(Re-)rendering", @order, @key, @text
 
 			Dom.addClass "sortItem"
 			# offset for draggin
@@ -180,7 +179,6 @@ exports.renderList = !->
 								color: '#999'
 
 							Dom.onTap !->
-								log "toggling collapse"
 								item.collapse(false, true)
 
 				# Overflow menu
@@ -193,26 +191,29 @@ exports.renderList = !->
 						data: 'more'
 						color: '#999'
 					Dom.onTap !->
-						Menu.renderMenu(item.key)
+						# from pointers to keys
+						ch = []
+						findChild = (a) !->
+							ch.push a.key
+							for b in a.children
+								findChild b
+						findChild item
+						Menu.renderMenu(item.key, ch)
 			Form.sep()
 
 		seekChildren: !->
 			@children = []
 			@treeLength = 1
-			log "seeking", @order, @text
 			return unless @order < items.length # if we are the last. We have no children.
 			for j in [@order..items.length-1]
 				i = items[j]
 				if i.depth is @depth+1
-					log "Adding", i.order, i.text
 					@children.push(i) # This makes a pointer right? Right?
 					++@treeLength
 				else
 					if i.depth <= @depth # Lower or equal depth means not my child
-						log "lower or equal", i.order, i.text
 						break
 					if i.depth > @depth+1 # higher indent means this is a grandchild of me
-						log "grandchild", i.order, i.text
 						++@treeLength
 			if @treeLength > 1
 				@arrowO.set 1
@@ -220,7 +221,6 @@ exports.renderList = !->
 		collapse: (force = false, toggle = false, initial = false) !->
 			return unless @children.length #of no children, never do any of this
 			#either force it close, or restore it.
-			log "Collapse", @order, force, toggle, @collapsed, @arrowO.peek()
 			collapsed = @collapsed
 			if initial and !collapsed then return
 			if force
@@ -235,12 +235,10 @@ exports.renderList = !->
 			height = 0
 			for c in @children
 				height += c.element.height()
-				log "collapsing child"
 				c.collapse(collapsed)
 				c.hide if collapsed then height else-1 # -1 unhides the item
 
 		hide: (height) !->
-			log "Hide!", @order, height
 			if height >= 0
 				@element.style display: 'none'
 			else
@@ -262,7 +260,6 @@ exports.renderList = !->
 					# determine direction
 					if dragDirection is 0
 						if touches[0].x isnt 0 or touches[0].y isnt 0
-							log touches[0].x, touches[0].y
 							if touches[0].y is 0 or Math.abs(touches[0].x)/Math.abs(touches[0].y)|0.1 > 3
 								dragDirection = 1
 								element.addClass "dragging"
@@ -305,14 +302,10 @@ exports.renderList = !->
 				if touches[0].op is 1
 					scrollDelta = Page.scroll()
 					startScrollDelta = Page.scroll()
-					log scrollDelta, startScrollDelta
 					contentHeight = element.height()
 					element.addClass "dragging"
 					draggedElement = item
 					oldY = element.getOffsetXY().y + (element.height()/2)
-					# Collapse if parent
-					# Collapse(elementO, elementId, elementD, 0)
-					log "forcing collapse"
 					item.collapse(true)
 
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
@@ -338,7 +331,6 @@ exports.renderList = !->
 					scrolling = 0
 					dragPosition = -1
 					element.style _transform: "translateY(0)"
-					log "restoring collapse"
 					item.collapse(false, false)
 			return false
 		,element
@@ -440,7 +432,11 @@ exports.renderList = !->
 		Db.shared.observeEach 'items', (item) !->
 			empty.set(!++count)
 			Obs.onClean !->
-				empty.set(!--count)
+				if !item.peek('order')? # filter onClean on existing items. this happens.
+					empty.set(!--count)
+					# splice latest of items. Since it will be too long now.
+					items.pop()
+					redrawO.incr()
 
 			redrawO.incr()
 

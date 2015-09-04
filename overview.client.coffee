@@ -21,15 +21,17 @@ exports.renderList = !->
 	items = []
 	oldY = 0
 	contentE = Dom.get()
-	contentHeight = 0
 	scrollDelta = 0
 	startScrollDelta = 0
 	scrolling = 0
 	dragDirection = 0 # 1 for x, -1 for y
 	dragPosition = -1
+	indentParent = -1
 	draggedElement = null
+	draggedElementHeight = 0
 	draggedDelta = 0
 	draggedElementY = 0
+	draggedIndeting = 0
 
 	class Item
 		constructor: (@dbRef, @element) ->
@@ -44,8 +46,10 @@ exports.renderList = !->
 			@children = []
 			@treeLength = 1 # always yourself
 			@collapsed = Db.personal.peek 'collapsed', @key
+			@hidden = false
 			@arrowO = Obs.create(0)
 			@offsetO = Obs.create(0)
+			@contentElement = @element
 			item = this
 			Obs.observe !->
 				item.order = dbRef.get('order')
@@ -110,6 +114,7 @@ exports.renderList = !->
 
 				# Content and avatar
 				Dom.div !->
+					item.contentElement = Dom.get()
 					Dom.style
 						Flex: 1
 						Box: 'left middle'
@@ -123,6 +128,7 @@ exports.renderList = !->
 							textDecoration: if item.completed then 'line-through' else 'none'
 							color: if item.completed then '#aaa' else 'inherit'
 							fontSize: '16px' #'21px'
+							_backfaceVisibility: 'hidden'
 						Dom.div !->
 							Dom.style
 								Flex: 1
@@ -131,7 +137,8 @@ exports.renderList = !->
 								# whiteSpace: 'nowrap'
 								# textOverflow: 'ellipsis'
 								# width: '0px' #Firefox hack. But.. errrgh... whut?
-							Dom.userText item.order + " - " + item.text
+							# Dom.userText item.order + " - " + item.text
+							Dom.userText item.text
 							if notes = item.notes
 								Dom.div !->
 									Dom.style
@@ -241,8 +248,10 @@ exports.renderList = !->
 		hide: (height) !->
 			if height >= 0
 				@element.style display: 'none'
+				@hidden = true
 			else
 				@element.style display: 'inherit'
+				@hidden = false
 
 		setOffset: (offset) !->
 			@offsetO.set offset
@@ -298,17 +307,23 @@ exports.renderList = !->
 			if touches.length == 1
 				# drag element
 				draggedDelta = touches[0].y
+				horiontalDelta = touches[0].x
 
 				if touches[0].op is 1
 					scrollDelta = Page.scroll()
 					startScrollDelta = Page.scroll()
-					contentHeight = element.height()
+					draggedElementHeight = element.height()
 					element.addClass "dragging"
 					draggedElement = item
+					dragPosition = item.order # Start position
 					oldY = element.getOffsetXY().y + (element.height()/2)
+					initialDepth = item.depth
 					item.collapse(true)
 
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
+
+				# do indenting
+				# draggedIndeting = Math.floor(horiontalDelta/30)
 
 				onDrag()
 
@@ -322,10 +337,11 @@ exports.renderList = !->
 
 				if touches[0].op is 4 # touch is stopped
 					element.removeClass "dragging"
-					if dragPosition > 0
-						log "Done. Send reorder to server"
-						Server.sync "reorder", elementO, dragPosition, item.treeLength, !->
-							SF.reorder elementO, dragPosition, item.treeLength
+					if dragPosition > 0 or draggedIndeting != 0
+						log "Done. Send reorder to server", draggedIndeting
+						# indentDelta = draggedIndeting - item.depth
+						Server.sync "reorder", elementO, dragPosition, draggedIndeting, item.treeLength, !->
+							SF.reorder elementO, dragPosition, draggedIndeting, item.treeLength
 					# reset lots of things
 					draggedElement = null
 					scrolling = 0
@@ -339,29 +355,60 @@ exports.renderList = !->
 		return unless draggedElement and draggedElement.order and draggedElementY isnt oldY
 
 		direction = draggedElementY > oldY
-		draggedElement.element.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
 
 		# check dragover
 		overElement = -1
-		i = null
-		for item in items
-			continue unless item #dealing with empty slots in the array
-			continue unless item isnt draggedElement
+		spaceCheck = -1
+		lastItem = -1
+		for item, i in items
+			continue unless item # dealing with empty slots in the array
+			continue unless item isnt draggedElement # ignore myself
+			continue unless !item.hidden # ignore if hidden
 			li = item.element
 			trans = item.getOffset()
 			liHalf = li.height()/2
 
 			liY = li.getOffsetXY().y + trans
+			if draggedElementY > liY and draggedElementY < liY+liHalf+liHalf
+				spaceCheck = i
 			if draggedElementY > liY+liHalf and oldY <= liY+liHalf
 				overElement = item.order
-				dragPosition = item.order
+				dragPosition = indentParent = item.order
+				# if item.children?.length
+					# draggedIndeting = item.depth+1
 				break
 			else if draggedElementY < liY+liHalf and oldY >= liY+liHalf
 				overElement = item.order
-				dragPosition = item.order-1
+				dragPosition = item.order - 1 # does this work with hidden stuff?
+				indentParent = lastItem # item.order-1
+				# draggedIndeting = item.depth
 				break
+			lastItem = item.order
+
+		if spaceCheck < 0 # am I in the empty space between items?
+			if indentParent >= 1 # am I beneath an item?
+				# above or below half the whitespace?
+				parent = items[indentParent-1]
+				if draggedElementY < parent.element.getOffsetXY().y + parent.element.height() + parent.getOffset() + draggedElementHeight*.6
+					draggedIndeting = (parent.depth + 1) - draggedElement.depth
+					log "just below", indentParent, parent.text, draggedIndeting, "(#{draggedElement.depth})"
+				else
+					# draggedIndeting = Math.max(0, .depth - 1) - draggedElement.depth
+					draggedIndeting = parent.depth - draggedElement.depth
+					log "far below", indentParent, parent.text, draggedIndeting, "(#{draggedElement.depth})"
+			else
+				draggedIndeting = 0 - draggedElement.depth
+				log "spaaaaaaaaace", draggedIndeting, "(#{draggedElement.depth})"
+		else
+			log "over:", spaceCheck+1
+			# if items[dragPosition]?.children?.length>0
+
+		# actually visually position the dragged element
+		# draggedElement.element.style _transform: "translate(#{draggedIndeting*15 + 'px'}, #{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
+		draggedElement.element.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
+		draggedElement.contentElement.style _transform: "translateX(#{draggedIndeting*15 + 'px'})"
+
 		# move element out of the way
-		draggedElementHeight = draggedElement.element.height()
 		if overElement >= 0 and item.key
 			if overElement > draggedElement.order
 				t = if direction and trans > 0 then 0 else draggedElementHeight
@@ -387,7 +434,12 @@ exports.renderList = !->
 
 	editingItem = Obs.create(false)
 	Ui.list !->
-		# Dom.style backgroundColor: '#fff', margin: '-4px -8px', borderBottom: '1px solid #ccc'
+		Dom.style
+			backgroundColor: '#fff'
+			margin: '-8px -8px 0px'
+			borderBottom: '1px solid #aaa'
+			borderRadius: '0px'
+			_boxShadow: "0 1px 2px rgba(0,0,0,.1)"
 
 		# Top entry: adding an item
 		Ui.item !->

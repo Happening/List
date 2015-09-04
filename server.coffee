@@ -34,8 +34,8 @@ exports.client_complete = (id, value) !->
 	if Db.shared.get('items', id)
 		Db.shared.set 'items', id, 'completed', !!value
 
-exports.client_reorder = (id, pos, length = 1) !->
-	SF.reorder id, pos, length
+exports.client_reorder = (id, pos, indent, length = 1) !->
+	SF.reorder id, pos, indent, length
 
 exports.client_assign = (id, user = Plugin.userId()) !->
 	log "assigneing", id, user
@@ -58,4 +58,4 @@ exports.client_resetOrder = !->
 	order = 0
 	Db.shared.forEach 'items', (item) !->
 		item.set 'order', ++order
-		log "item set to " + order
+		item.set 'depth', 0

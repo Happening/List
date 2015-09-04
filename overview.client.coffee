@@ -113,16 +113,16 @@ exports.renderList = !->
 
 				# Content and avatar
 				Dom.div !->
-					item.contentElement = Dom.get()
 					Dom.style
 						Flex: 1
 						Box: 'left middle'
 						padding: "0 0 0 #{item.depth*15}" # reactive
-						transition_: 'transform 0.2s ease-out'
-						WebkitTransition_: 'transform 0.2s ease-out'
-						_backfaceVisibility: 'hidden'
 					Dom.div !->
+						item.contentElement = Dom.get()
 						Dom.style
+							transition_: 'transform 0.2s ease-out'
+							WebkitTransition_: 'transform 0.2s ease-out'
+							_backfaceVisibility: 'hidden'
 							boxSizing: 'border-box'
 							Box: 'middle'
 							Flex: 1
@@ -315,17 +315,13 @@ exports.renderList = !->
 					scrollDelta = Page.scroll()
 					startScrollDelta = Page.scroll()
 					draggedElementHeight = element.height()
-					element.addClass "dragging"
 					draggedElement = item
 					dragPosition = item.order # Start position
 					oldY = element.getOffsetXY().y + (element.height()/2)
-					initialDepth = item.depth
+					element.addClass "dragging"
 					item.collapse(true)
 
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
-
-				# do indenting
-				# draggedIndeting = Math.floor(horiontalDelta/30)
 
 				onDrag()
 
@@ -384,9 +380,9 @@ exports.renderList = !->
 				break
 
 		# actually visually position the dragged element
-		# draggedElement.element.style _transform: "translate(#{draggedIndeting*15 + 'px'}, #{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
 		draggedElement.element.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
 		draggedElement.contentElement.style _transform: "translateX(#{draggedIndeting*15 + 'px'})"
+		draggedElement.contentElement.style paddingRight: "#{draggedIndeting*15 + 'px'}"
 
 		# move element out of the way
 		if overElement >= 0 and item.key

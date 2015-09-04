@@ -26,7 +26,6 @@ exports.renderList = !->
 	scrolling = 0
 	dragDirection = 0 # 1 for x, -1 for y
 	dragPosition = -1
-	indentParent = -1
 	draggedElement = null
 	draggedElementHeight = 0
 	draggedDelta = 0
@@ -119,6 +118,9 @@ exports.renderList = !->
 						Flex: 1
 						Box: 'left middle'
 						padding: "0 0 0 #{item.depth*15}" # reactive
+						transition_: 'transform 0.2s ease-out'
+						WebkitTransition_: 'transform 0.2s ease-out'
+						_backfaceVisibility: 'hidden'
 					Dom.div !->
 						Dom.style
 							boxSizing: 'border-box'
@@ -128,7 +130,7 @@ exports.renderList = !->
 							textDecoration: if item.completed then 'line-through' else 'none'
 							color: if item.completed then '#aaa' else 'inherit'
 							fontSize: '16px' #'21px'
-							_backfaceVisibility: 'hidden'
+							wordBreak: 'break-word'
 						Dom.div !->
 							Dom.style
 								Flex: 1
@@ -358,50 +360,28 @@ exports.renderList = !->
 
 		# check dragover
 		overElement = -1
-		spaceCheck = -1
-		lastItem = -1
 		for item, i in items
 			continue unless item # dealing with empty slots in the array
 			continue unless item isnt draggedElement # ignore myself
-			continue unless !item.hidden # ignore if hidden
+			continue unless !item.hidden # ignore hidden
 			li = item.element
 			trans = item.getOffset()
 			liHalf = li.height()/2
 
 			liY = li.getOffsetXY().y + trans
-			if draggedElementY > liY and draggedElementY < liY+liHalf+liHalf
-				spaceCheck = i
+			# if draggedElementY > liY and draggedElementY < liY+liHalf+liHalf
+				# I am visually hovering over someone!
+
 			if draggedElementY > liY+liHalf and oldY <= liY+liHalf
 				overElement = item.order
-				dragPosition = indentParent = item.order
-				# if item.children?.length
-					# draggedIndeting = item.depth+1
+				dragPosition = item.order
+				draggedIndeting = items[i+1]?.depth - draggedElement.depth # set depth to item beneath us
 				break
 			else if draggedElementY < liY+liHalf and oldY >= liY+liHalf
 				overElement = item.order
 				dragPosition = item.order - 1 # does this work with hidden stuff?
-				indentParent = lastItem # item.order-1
-				# draggedIndeting = item.depth
+				draggedIndeting = items[i]?.depth - draggedElement.depth # set depth to item beneath us
 				break
-			lastItem = item.order
-
-		if spaceCheck < 0 # am I in the empty space between items?
-			if indentParent >= 1 # am I beneath an item?
-				# above or below half the whitespace?
-				parent = items[indentParent-1]
-				if draggedElementY < parent.element.getOffsetXY().y + parent.element.height() + parent.getOffset() + draggedElementHeight*.6
-					draggedIndeting = (parent.depth + 1) - draggedElement.depth
-					log "just below", indentParent, parent.text, draggedIndeting, "(#{draggedElement.depth})"
-				else
-					# draggedIndeting = Math.max(0, .depth - 1) - draggedElement.depth
-					draggedIndeting = parent.depth - draggedElement.depth
-					log "far below", indentParent, parent.text, draggedIndeting, "(#{draggedElement.depth})"
-			else
-				draggedIndeting = 0 - draggedElement.depth
-				log "spaaaaaaaaace", draggedIndeting, "(#{draggedElement.depth})"
-		else
-			log "over:", spaceCheck+1
-			# if items[dragPosition]?.children?.length>0
 
 		# actually visually position the dragged element
 		# draggedElement.element.style _transform: "translate(#{draggedIndeting*15 + 'px'}, #{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"

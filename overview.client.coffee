@@ -3,6 +3,7 @@ Dom = require 'dom'
 Event = require 'event'
 Form = require 'form'
 Icon = require 'icon'
+Modal = require 'modal'
 Obs = require 'obs'
 Page = require 'page'
 Plugin = require 'plugin'
@@ -48,6 +49,9 @@ exports.renderList = !->
 			@hidden = false
 			@arrowO = Obs.create(0)
 			@offsetO = Obs.create(0)
+			@showPlus = Obs.create(-1)
+			@plusOffset = Obs.create(0)
+			@plusElement = null
 			@contentElement = @element
 			item = this
 			Obs.observe !->
@@ -62,12 +66,13 @@ exports.renderList = !->
 
 		render: ->
 			item = this # zucht. bijna goed dit.
-			# log "(Re-)rendering", @order, @key, @text
+			log "(Re-)rendering", @order, @key, @text
 
 			Dom.addClass "sortItem"
 			# offset for draggin
 			# item.offsetO.set 0 # reset own offset when rendering
 			# item.collapseO.set  0 # reset own offset when rendering
+			item.plusOffset.set 0 # reset plus offset when rendering
 			Dom.style
 				_transform: "translateY(#{'0px'})"
 			Obs.observe !->
@@ -210,6 +215,29 @@ exports.renderList = !->
 						Menu.renderMenu(item.key, ch)
 			Form.sep()
 
+			if (p = item.showPlus.get()) >= 0
+				Dom.div !->
+					item.plusElement = Dom.get()
+					# Obs.observe !->
+					offset = item.plusOffset.get()
+					Dom.addClass "sortItem"
+					Dom.style
+						_transform: "translateY(#{offset + 'px'})"
+					Dom.div !->
+						Dom.style
+							marginLeft: '40px'
+							padding: "8 0 8 #{item.depth*15}" # reactive
+							color: Plugin.colors().highlight
+						Dom.text "+ Add Subitem"
+
+					Dom.onTap !->
+						Modal.prompt tr("Add subitem")
+						, (value) !->
+							Server.sync 'add', value, p, !->
+								SF.add(value, p, Plugin.userId())
+							Modal.remove()
+					Form.sep()
+
 		seekChildren: !->
 			@children = []
 			@treeLength = 1
@@ -217,6 +245,8 @@ exports.renderList = !->
 			for j in [@order..items.length-1]
 				i = items[j]
 				if i.depth is @depth+1
+					if i.getShowPlus() >= 0
+						i.setShowPlus -1 # remove subitem thing, so be sure
 					@children.push(i) # This makes a pointer right? Right?
 					++@treeLength
 				else
@@ -226,6 +256,10 @@ exports.renderList = !->
 						++@treeLength
 			if @treeLength > 1
 				@arrowO.set 1
+
+			# if I have children, set 'addSubItem' to the parent
+			if @children?.length
+				@children[@children.length-1].setShowPlus @key
 
 		collapse: (force = false, toggle = false, initial = false) !->
 			return unless @children.length #of no children, never do any of this
@@ -259,6 +293,18 @@ exports.renderList = !->
 			@offsetO.set offset
 		getOffset: ->
 			@offsetO.peek()
+		setShowPlus: (show) !->
+			@showPlus.set show
+		getShowPlus: ->
+			@showPlus.peek()
+		setPlusOffset: (offset) !->
+			@plusOffset.set offset
+		getPlusOffset: ->
+			@plusOffset.peek()
+		hidePlus: !->
+			@plusElement?.style display: 'none'
+		unHidePlus: !-> # show is taken
+			@plusElement?.style display: 'inherit'
 
 		dragToComplete: (element) !->
 			key = @key
@@ -314,6 +360,7 @@ exports.renderList = !->
 				if touches[0].op is 1
 					scrollDelta = Page.scroll()
 					startScrollDelta = Page.scroll()
+					item.hidePlus() # if we have a "+ add subitem" div, hide it
 					draggedElementHeight = element.height()
 					draggedElement = item
 					dragPosition = item.order # Start position
@@ -336,7 +383,7 @@ exports.renderList = !->
 				if touches[0].op is 4 # touch is stopped
 					element.removeClass "dragging"
 					if dragPosition > 0 or draggedIndeting != 0
-						log "Done. Send reorder to server", draggedIndeting
+						log "Done. Send reorder to server", elementO, dragPosition, draggedIndeting, item.treeLength
 						# indentDelta = draggedIndeting - item.depth
 						Server.sync "reorder", elementO, dragPosition, draggedIndeting, item.treeLength, !->
 							SF.reorder elementO, dragPosition, draggedIndeting, item.treeLength
@@ -346,6 +393,7 @@ exports.renderList = !->
 					dragPosition = -1
 					element.style _transform: "translateY(0)"
 					item.collapse(false, false)
+					item.unHidePlus()
 			return false
 		,element
 
@@ -356,6 +404,7 @@ exports.renderList = !->
 
 		# check dragover
 		overElement = -1
+		plusElement = -1
 		for item, i in items
 			continue unless item # dealing with empty slots in the array
 			continue unless item isnt draggedElement # ignore myself
@@ -363,21 +412,41 @@ exports.renderList = !->
 			li = item.element
 			trans = item.getOffset()
 			liHalf = li.height()/2
+			liPlusOffset = 0
+			liPlus = false
+			if item.getShowPlus() >=0
+				liPlus = true
+				if item.getPlusOffset() <= 0
+					liPlusOffset -= 17.5 # (35/2)
 
 			liY = li.getOffsetXY().y + trans
 			# if draggedElementY > liY and draggedElementY < liY+liHalf+liHalf
 				# I am visually hovering over someone!
 
-			if draggedElementY > liY+liHalf and oldY <= liY+liHalf
+			if draggedElementY > liY+liHalf+liPlusOffset and oldY <= liY+liHalf+liPlusOffset
 				overElement = item.order
 				dragPosition = item.order
-				draggedIndeting = items[i+1]?.depth - draggedElement.depth # set depth to item beneath us
+				if items[i+1]
+					draggedIndeting = (items[i+1].depth - draggedElement.depth)|0 # set depth to item beneath us
+				if liPlus then ++draggedIndeting
 				break
-			else if draggedElementY < liY+liHalf and oldY >= liY+liHalf
+			else if draggedElementY < liY+liHalf+liPlusOffset and oldY >= liY+liHalf+liPlusOffset
 				overElement = item.order
 				dragPosition = item.order - 1 # does this work with hidden stuff?
 				draggedIndeting = items[i]?.depth - draggedElement.depth # set depth to item beneath us
 				break
+
+			if liPlus
+				liY = liY + liHalf + liHalf + item.getPlusOffset() - 17.5
+				# log "check", liY, "(",oldly, (liHalf*2),item.plusOffset.peek(), ") |", draggedElementY
+				if draggedElementY > liY and oldY <= liY # from above
+					plusElement = item.order
+					draggedIndeting = items[i+1]?.depth - draggedElement.depth
+					break
+				else if draggedElementY < liY and oldY >= liY # from below
+					plusElement = item.order
+					draggedIndeting = items[i]?.depth - draggedElement.depth # set depth to item
+					break
 
 		# actually visually position the dragged element
 		draggedElement.element.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
@@ -395,13 +464,28 @@ exports.renderList = !->
 				else
 					t = if trans < 0 then 0 else draggedElementHeight
 			if t == 0
-				# log "normal"
 				dragPosition = if draggedElement.order > item.order then item.order+1 else item.order-1
 			else
 				dragPosition = item.order
-				# if t > 0 then log "down" else log "up"
-			# log "dropped on:", dragPosition
 			item.setOffset t
+
+			# do plus stuff
+			if item.getShowPlus()
+				if t<0
+					item.plusOffset.set -t
+				else if t == 0 and direction
+					item.plusOffset.set draggedElementHeight
+				else
+					item.plusOffset.set 0
+
+		# move plus element out of the way
+		if plusElement >= 0 and item.key
+			trans = item.getPlusOffset()
+			if direction
+				t = if trans > 0 then 0 else draggedElementHeight
+			else
+				t = if trans < 0 then 0 else draggedElementHeight
+			item.setPlusOffset t
 		oldY = draggedElementY
 
 	Dom.style
@@ -458,6 +542,8 @@ exports.renderList = !->
 		# List of all items
 		log "-------Initial Draw-----"
 		Db.shared.observeEach 'items', (item) !->
+			# trigger observe of depth change
+			dontSave = item.get('depth')
 			empty.set(!++count)
 			Obs.onClean !->
 				if !item.peek('order')? # filter onClean on existing items. this happens.

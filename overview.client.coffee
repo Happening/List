@@ -212,7 +212,7 @@ exports.renderList = !->
 							for b in a.children
 								findChild b
 						findChild item
-						Menu.renderMenu(item.key, ch)
+						Menu.renderMenu(item.key, ch, item)
 			Form.sep()
 
 			if (p = item.showPlus.get()) >= 0
@@ -259,6 +259,8 @@ exports.renderList = !->
 
 			# if I have children, set 'addSubItem' to the parent
 			if @children?.length
+				# and remove + from myself
+				@setShowPlus -1
 				@children[@children.length-1].setShowPlus @key
 
 		collapse: (force = false, toggle = false, initial = false) !->
@@ -367,6 +369,7 @@ exports.renderList = !->
 					oldY = element.getOffsetXY().y + (element.height()/2)
 					element.addClass "dragging"
 					item.collapse(true)
+					draggedIndeting = 0
 
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
 
@@ -426,32 +429,46 @@ exports.renderList = !->
 			if draggedElementY > liY+liHalf+liPlusOffset and oldY <= liY+liHalf+liPlusOffset
 				overElement = item.order
 				dragPosition = item.order
-				if items[i+1]
-					draggedIndeting = (items[i+1].depth - draggedElement.depth)|0 # set depth to item beneath us
-				if liPlus then ++draggedIndeting
+				if liPlus
+					draggedIndeting = item.depth - draggedElement.depth 
+					log "^>setting DI to", draggedIndeting, item.depth
+				else
+					draggedIndeting = (if items[i+1] then items[i+1].depth else 0) - draggedElement.depth # set depth to item beneath us
+					log "^setting DI to", draggedIndeting
 				break
 			else if draggedElementY < liY+liHalf+liPlusOffset and oldY >= liY+liHalf+liPlusOffset
 				overElement = item.order
 				dragPosition = item.order - 1 # does this work with hidden stuff?
-				draggedIndeting = items[i]?.depth - draggedElement.depth # set depth to item beneath us
+				draggedIndeting = item.depth - draggedElement.depth # set depth to item beneath us
+				log "setting DI to", draggedIndeting
 				break
 
 			if liPlus
 				liY = liY + liHalf + liHalf + item.getPlusOffset() - 17.5
 				# log "check", liY, "(",oldly, (liHalf*2),item.plusOffset.peek(), ") |", draggedElementY
 				if draggedElementY > liY and oldY <= liY # from above
+					# indentPlus = if item.getShowPlus() == item.key then 1 else 0
+					# log item.getShowPlus(), item.key
+					if item.getShowPlus() == parseInt(item.key)
+						log "whut huwt"
+						indentPlus = 1
+					indentPlus = 0
 					plusElement = item.order
-					draggedIndeting = items[i+1]?.depth - draggedElement.depth
+					draggedIndeting = (if items[i+1] then items[i+1].depth else 0) + indentPlus - draggedElement.depth
+					log "+^ setting DI to", draggedIndeting, indentPlus
 					break
 				else if draggedElementY < liY and oldY >= liY # from below
+					indentPlus = if item.getShowPlus() is parseInt(item.key) then 1 else 0
+					log item.getShowPlus(), item.key
 					plusElement = item.order
-					draggedIndeting = items[i]?.depth - draggedElement.depth # set depth to item
+					draggedIndeting = item.depth + indentPlus - draggedElement.depth # set depth to item
+					log "+ setting DI to", draggedIndeting, indentPlus
 					break
 
 		# actually visually position the dragged element
 		draggedElement.element.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
 		draggedElement.contentElement.style _transform: "translateX(#{draggedIndeting*15 + 'px'})"
-		draggedElement.contentElement.style paddingRight: "#{draggedIndeting*15 + 'px'}"
+		draggedElement.contentElement.style paddingRight: "#{(draggedIndeting*15+4) + 'px'}"
 
 		# move element out of the way
 		if overElement >= 0 and item.key
@@ -470,7 +487,7 @@ exports.renderList = !->
 			item.setOffset t
 
 			# do plus stuff
-			if item.getShowPlus()
+			if item.getShowPlus() >= 0
 				if t<0
 					item.plusOffset.set -t
 				else if t == 0 and direction

@@ -14,7 +14,7 @@ Ui = require 'ui'
 {tr} = require 'i18n'
 SF = require 'serverFunctions'
 
-exports.renderMenu = (key, children) !->
+exports.renderMenu = (key, children, item) !->
 	key = parseInt(key)
 	Modal.show tr("Options"), !->
 		Dom.style width: '80%', maxWidth: '400px'
@@ -55,7 +55,7 @@ exports.renderMenu = (key, children) !->
 				Ui.item !->
 					Dom.span !->
 						Dom.style Flex: 1
-						Dom.text tr("Add subitem")
+						Dom.text tr("Allow subitems")
 					Dom.span !->
 						Dom.style fontSize: '30px', paddingRight: '4px'
 						Icon.render
@@ -63,11 +63,12 @@ exports.renderMenu = (key, children) !->
 							color: '#444'
 							style: {marginRight: '-4px'}
 					Dom.onTap !->
-						Modal.prompt tr("Add subitem")
-						, (value) !->
-							Server.sync 'add', value, key, !->
-								SF.add(value, key, Plugin.userId())
-							Modal.remove()
+						item.setShowPlus(key)
+						# Modal.prompt tr("Add subitem")
+						# , (value) !->
+						# 	Server.sync 'add', value, key, !->
+						# 		SF.add(value, key, Plugin.userId())
+						Modal.remove()
 
 				if Plugin.userId() is Db.shared.peek('items', key, 'by') or Plugin.userIsAdmin()
 					Ui.item !->

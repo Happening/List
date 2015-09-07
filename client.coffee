@@ -110,7 +110,11 @@ renderItem = (itemId) !->
 							# 	Dom.style fontSize: '18px'
 							# 	Dom.text Form.smileyToEmoji Plugin.userName(a)
 				else
-					Dom.text tr("None assigned")
+					Dom.h4 !->
+						Dom.style
+							fontSize: '120%'
+							padding: '8px 0px'
+						Dom.text tr("None assigned")
 				Dom.onTap !->
 					Modal.show tr("Assign members"), !->
 						Dom.style width: '80%', maxWidth: '400px'

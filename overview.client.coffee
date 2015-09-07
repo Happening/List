@@ -225,9 +225,10 @@ exports.renderList = !->
 						_transform: "translateY(#{offset + 'px'})"
 					Dom.div !->
 						d = if p is parseInt(item.key) then 1 else 0
+						desktopOffset = if mobile then 0 else 47
 						Dom.style
 							marginLeft: '40px'
-							padding: "8 0 8 #{(item.depth+d)*15}" # reactive
+							padding: "8 0 8 #{(item.depth+d)*15 + desktopOffset}" # reactive
 							color: Plugin.colors().highlight
 						Dom.text "+ Add Subitem"
 
@@ -374,9 +375,13 @@ exports.renderList = !->
 					item.collapse(true)
 					draggedIndeting = 0
 
+					log "Drag started"
+
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
 
 				onDrag()
+
+				log "Dragging"
 
 				# scroll
 				ph = Page.height()-100
@@ -397,9 +402,10 @@ exports.renderList = !->
 					draggedElement = null
 					scrolling = 0
 					dragPosition = -1
-					element.style _transform: "translateY(0)"
+					# element.style _transform: "translateY(0)"
 					item.collapse(false, false)
 					item.unHidePlus()
+					log "Drag Stopped"
 			return false
 		,element
 

@@ -224,17 +224,20 @@ exports.renderList = !->
 					Dom.style
 						_transform: "translateY(#{offset + 'px'})"
 					Dom.div !->
+						d = if p is parseInt(item.key) then 1 else 0
 						Dom.style
 							marginLeft: '40px'
-							padding: "8 0 8 #{item.depth*15}" # reactive
+							padding: "8 0 8 #{(item.depth+d)*15}" # reactive
 							color: Plugin.colors().highlight
 						Dom.text "+ Add Subitem"
 
 					Dom.onTap !->
 						Modal.prompt tr("Add subitem")
 						, (value) !->
-							Server.sync 'add', value, p, !->
-								SF.add(value, p, Plugin.userId())
+							# if we are a childless parent
+							d = if p is parseInt(item.key) then 1 else 0
+							Server.sync 'add', value, item.order+1, item.depth + d, p, !->
+								SF.add(value, item.order+1, item.depth + d, Plugin.userId())
 							Modal.remove()
 					Form.sep()
 

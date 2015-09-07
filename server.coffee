@@ -5,9 +5,8 @@ SF = require 'serverFunctions'
 
 # Onupgrade, move all items to 'items' and give them an order and depth of 0
 
-exports.client_add = (text, parent) !->
-	log "P:", parent
-	SF.add(text, parent, Plugin.userId())
+exports.client_add = (text, order, depth, parent) !->
+	SF.add(text, order, depth, Plugin.userId())
 
 	name = Plugin.userName()
 	if parent

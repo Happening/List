@@ -335,7 +335,7 @@ exports.renderList = !->
 			# if mobile
 			Dom.trackTouch (touches...) ->
 				if dragDirection is -1
-					if touches.length == 1 and touches[0].op is 4 then dragDirection = 0
+					if touches.length == 1 and touches[0].op&4 then dragDirection = 0
 					return true
 				if touches.length == 1
 					# determine direction
@@ -349,7 +349,7 @@ exports.renderList = !->
 								return true
 
 					element.style _transform: "translateX(#{Math.min(120, Math.max(-120, touches[0].x)) + 'px'})"
-					if touches[0].op is 4 # touch is stopped
+					if touches[0].op&4 # touch is stopped
 						dragDirection = 0
 						if touches[0].x > swipeToCompleteTreshold # treshhold
 							Server.sync 'complete', key, true, !->
@@ -381,7 +381,7 @@ exports.renderList = !->
 				draggedDelta = touches[0].y
 				horiontalDelta = touches[0].x
 
-				if touches[0].op is 1
+				if touches[0].op&1
 					scrollDelta = Page.scroll()
 					startScrollDelta = Page.scroll()
 					item.hidePlus() # if we have a "+ add subitem" div, hide it
@@ -393,13 +393,9 @@ exports.renderList = !->
 					item.collapse(true)
 					draggedIndeting = 0
 
-					log "Drag started"
-
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
 
 				onDrag()
-
-				log "Dragging", touches.length, touches[0].op
 
 				# scroll
 				ph = Page.height()-100
@@ -409,8 +405,7 @@ exports.renderList = !->
 					scrolling = -1
 				else scrolling = 0
 
-				if touches[0].op is 4 or touches[0].op is 6 # touch is stopped
-					log "Drag Stopped 1"
+				if touches[0].op&4# touch is stopped
 					element.removeClass "dragging"
 					if dragPosition isnt item.order or draggedIndeting != 0
 						log "Done. Send reorder to server", elementO, dragPosition, draggedIndeting, item.treeLength
@@ -425,7 +420,6 @@ exports.renderList = !->
 					dragPosition = -1
 					item.collapse(false, false)
 					item.unHidePlus()
-					log "Drag Stopped 2"
 			return false
 		,element
 
@@ -444,20 +438,16 @@ exports.renderList = !->
 			li = item.element
 			trans = item.getOffset()
 			liHalf = li.height()/2
-			liPlusOffset = 0
-			liPlus = false
-			if item.getShowPlus() >=0
-				liPlus = true
-				if item.getPlusOffset() <= 0
-					liPlusOffset -= 17.5 # (35/2)
+			liPlus = item.getShowPlus() >=0
+			liPlusOffset = if item.getPlusOffset() <= 0 then -17.5 else 0
 
-			liY = li.getOffsetXY().y + trans
+			liY = li.getOffsetXY().y + trans + liHalf + liPlusOffset
 			# if draggedElementY > liY and draggedElementY < liY+liHalf+liHalf
 				# I am visually hovering over someone!
 
 			# Check if we are moving over the top or bottom half of an item
 
-			if draggedElementY > liY+liHalf+liPlusOffset and oldY <= liY+liHalf+liPlusOffset
+			if draggedElementY > liY and oldY <= liY
 				overElement = item.order
 				dragPosition = item.order
 				if liPlus
@@ -465,16 +455,16 @@ exports.renderList = !->
 				else
 					draggedIndeting = (if items[i+1] then items[i+1].depth else 0) - draggedElement.depth # set depth to item beneath us
 				break
-			else if draggedElementY < liY+liHalf+liPlusOffset and oldY >= liY+liHalf+liPlusOffset
+			else if draggedElementY < liY and oldY >= liY
 				overElement = item.order
 				dragPosition = item.order - 1 # does this work with hidden stuff?
 				draggedIndeting = item.depth - draggedElement.depth # set depth to item beneath us
 				break
 
 			if liPlus # And do the same on the "+ Add Subselement"
-				liY = liY + liHalf + liHalf + item.getPlusOffset() - 17.5
+				liY += liHalf + item.getPlusOffset()
 				# log "check", liY, "(",oldly, (liHalf*2),item.plusOffset.peek(), ") |", draggedElementY
-				if draggedElementY > liY and oldY <= liY # from above
+				if draggedElementY > liY-17.5 and oldY <= liY-17.5 # from above
 					# indentPlus = if item.getShowPlus() == item.key then 1 else 0
 					# log item.getShowPlus(), item.key
 					if item.getShowPlus() == parseInt(item.key)

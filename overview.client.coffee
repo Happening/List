@@ -93,7 +93,7 @@ exports.renderList = !->
 				# Rearrange icon
 				Dom.div !->
 					Dom.style
-						padding: "0px 8px"
+						padding: "8px"
 						marginLeft: "-8px"
 					Icon.render
 						data: 'reorder'
@@ -399,7 +399,7 @@ exports.renderList = !->
 
 				onDrag()
 
-				log "Dragging"
+				log "Dragging", touches.length, touches[0].op
 
 				# scroll
 				ph = Page.height()-100
@@ -409,7 +409,7 @@ exports.renderList = !->
 					scrolling = -1
 				else scrolling = 0
 
-				if touches[0].op is 4 # touch is stopped
+				if touches[0].op is 4 or touches[0].op is 6 # touch is stopped
 					log "Drag Stopped 1"
 					element.removeClass "dragging"
 					if dragPosition isnt item.order or draggedIndeting != 0

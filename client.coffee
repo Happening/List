@@ -79,6 +79,21 @@ renderItem = (itemId) !->
 
 		Form.sep()
 
+		Form.input
+			simple: true
+			name: 'subitem'
+			text: tr("+ Add subitem")
+			onChange: (v) !->
+				item.editingItem.set(!!v?.trim())
+			onReturn: save
+			inScope: !->
+				Dom.style
+					Flex: 1
+					padding: "8 0 8 #{(item.depth+d)*15 + desktopOffset}" # reactive
+					display: 'block'
+					border: 'none'
+					fontSize: '100%'
+
 		Form.box !->
 			Dom.style
 				width: '100%'

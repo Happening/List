@@ -5,7 +5,7 @@ SF = require 'serverFunctions'
 
 # Onupgrade, move all items to 'items' and give them an order and depth of 0
 
-exports.client_add = (text, order, depth, parent) !->
+exports.client_add = add = (text, order, depth, parent) !->
 	SF.add(text, order, depth, Plugin.userId())
 
 	name = Plugin.userName()
@@ -20,6 +20,10 @@ exports.client_add = (text, order, depth, parent) !->
 			sender: Plugin.userId()
 
 exports.client_edit = (itemId, values) !->
+	if values.subitem# add this item
+		item = Db.shared.get('items', itemId)
+		add values.subitem, item.order+1, item.depth+1, itemId
+		values.subitem = null # rem
 	Db.shared.merge('items', itemId, values)
 
 exports.client_setText = (id, text) !->

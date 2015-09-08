@@ -35,7 +35,7 @@ exports.renderList = !->
 
 	class Item
 		constructor: (@dbRef, @element) ->
-			@key = dbRef.key()
+			@key = parseInt(dbRef.key())
 			@time = dbRef.peek('time')
 			@order = dbRef.peek('order')
 			@depth = dbRef.peek('depth')
@@ -51,9 +51,15 @@ exports.renderList = !->
 			@offsetO = Obs.create(0)
 			@showPlus = Obs.create(-1)
 			@plusOffset = Obs.create(0)
+			@editingItem = Obs.create(false)
 			@plusElement = null
 			@contentElement = @element
 			item = this
+
+			# if we are ad depth 0 and new, show +
+			if @depth is 0 and Event.isNew(item.time)
+				@showPlus.set @key
+
 			Obs.observe !->
 				item.order = dbRef.get('order')
 				item.depth = dbRef.get('depth')
@@ -71,17 +77,12 @@ exports.renderList = !->
 			Dom.addClass "sortItem"
 			# offset for draggin
 			# item.offsetO.set 0 # reset own offset when rendering
-			# item.collapseO.set  0 # reset own offset when rendering
 			item.plusOffset.set 0 # reset plus offset when rendering
 			Dom.style
 				_transform: "translateY(#{'0px'})"
 			Obs.observe !->
-				o = item.offsetO.get()
-				# c = collapseO.get(item.key)
-				c = 0
-				offset = o + c
+				offset = item.offsetO.get()
 				Dom.style _transform: "translateY(#{offset + 'px'})"
-				Dom.style display: if c then 'none' else 'inherit'
 
 			Dom.div !->
 				Dom.addClass "sortItem"
@@ -220,52 +221,68 @@ exports.renderList = !->
 					item.plusElement = Dom.get()
 					# Obs.observe !->
 					offset = item.plusOffset.get()
+					d = if p is parseInt(item.key) then 1 else 0
+					desktopOffset = if mobile then 38 else 82
 					Dom.addClass "sortItem"
 					Dom.style
 						_transform: "translateY(#{offset + 'px'})"
 					Dom.div !->
-						d = if p is parseInt(item.key) then 1 else 0
-						desktopOffset = if mobile then 0 else 47
-						Dom.style
-							marginLeft: '40px'
-							padding: "8 0 8 #{(item.depth+d)*15 + desktopOffset}" # reactive
-							color: Plugin.colors().highlight
-						Dom.text "+ Add Subitem"
+						Dom.style Box: 'middle'
+						save = !->
+							return if !addE.value().trim()
+							# d = if p is parseInt(item.key) then 1 else 0
+							Server.sync 'add', addE.value().trim(), item.order+1, item.depth + d, p, !->
+								SF.add(addE.value().trim(), item.order+1, item.depth + d, Plugin.userId())
+							addE.value ""
+							item.editingItem.set(false)
+							Form.blur()
 
-					Dom.onTap !->
-						Modal.prompt tr("Add subitem")
-						, (value) !->
-							# if we are a childless parent
-							d = if p is parseInt(item.key) then 1 else 0
-							Server.sync 'add', value, item.order+1, item.depth + d, p, !->
-								SF.add(value, item.order+1, item.depth + d, Plugin.userId())
-							Modal.remove()
+						addE = Form.input
+							simple: true
+							name: 'item' + item.key
+							text: tr("+ Add subitem")
+							onChange: (v) !->
+								item.editingItem.set(!!v?.trim())
+							onReturn: save
+							inScope: !->
+								Dom.style
+									Flex: 1
+									padding: "8 0 8 #{(item.depth+d)*15 + desktopOffset}" # reactive
+									display: 'block'
+									border: 'none'
+									fontSize: '100%'
+
+						Obs.observe !->
+							Ui.button !->
+								Dom.style visibility: (if item.editingItem.get() then 'visible' else 'hidden')
+								Dom.text tr("Add")
+							, save
 					Form.sep()
 
 		seekChildren: !->
 			@children = []
 			@treeLength = 1
-			return unless @order < items.length # if we are the last. We have no children.
-			for j in [@order..items.length-1]
-				i = items[j]
-				if i.depth is @depth+1
-					if i.getShowPlus() >= 0
-						i.setShowPlus -1 # remove subitem thing, so be sure
-					@children.push(i) # This makes a pointer right? Right?
-					++@treeLength
-				else
-					if i.depth <= @depth # Lower or equal depth means not my child
-						break
-					if i.depth > @depth+1 # higher indent means this is a grandchild of me
+			if @order < items.length # if we are the last. We have no children.
+				for j in [@order..items.length-1]
+					i = items[j]
+					if i.depth is @depth+1
+						if i.getShowPlus() >= 0
+							i.setShowPlus -1 # remove subitem thing, so be sure
+						@children.push(i) # This makes a pointer right? Right?
 						++@treeLength
-			if @treeLength > 1
-				@arrowO.set 1
+					else
+						if i.depth <= @depth # Lower or equal depth means not my child
+							break
+						if i.depth > @depth+1 # higher indent means this is a grandchild of me
+							++@treeLength
 
-			# if I have children, set 'addSubItem' to the parent
-			if @children?.length
-				# and remove + from myself
-				@setShowPlus -1
-				@children[@children.length-1].setShowPlus @key
+				# if I have children, set 'addSubItem' to the parent
+				if @children?.length
+					# and remove + from myself
+					@setShowPlus -1
+					@children[@children.length-1].setShowPlus @key
+
+			@arrowO.set (if @treeLength > 1 then 1 else 0)
 
 		collapse: (force = false, toggle = false, initial = false) !->
 			return unless @children.length #of no children, never do any of this
@@ -288,6 +305,7 @@ exports.renderList = !->
 				c.hide if collapsed then height else-1 # -1 unhides the item
 
 		hide: (height) !->
+			log "hiding", @text, height
 			if height >= 0
 				@element.style display: 'none'
 				@hidden = true
@@ -330,7 +348,7 @@ exports.renderList = !->
 								dragDirection = -1
 								return true
 
-					element.style _transform: "translateX(#{touches[0].x + 'px'})"
+					element.style _transform: "translateX(#{Math.min(120, Math.max(-120, touches[0].x)) + 'px'})"
 					if touches[0].op is 4 # touch is stopped
 						dragDirection = 0
 						if touches[0].x > swipeToCompleteTreshold # treshhold
@@ -392,20 +410,22 @@ exports.renderList = !->
 				else scrolling = 0
 
 				if touches[0].op is 4 # touch is stopped
+					log "Drag Stopped 1"
 					element.removeClass "dragging"
-					if dragPosition > 0 or draggedIndeting != 0
+					if dragPosition isnt item.order or draggedIndeting != 0
 						log "Done. Send reorder to server", elementO, dragPosition, draggedIndeting, item.treeLength
 						# indentDelta = draggedIndeting - item.depth
 						Server.sync "reorder", elementO, dragPosition, draggedIndeting, item.treeLength, !->
 							SF.reorder elementO, dragPosition, draggedIndeting, item.treeLength
+					else
+						element.style _transform: "translateY(0)"
 					# reset lots of things
 					draggedElement = null
 					scrolling = 0
 					dragPosition = -1
-					# element.style _transform: "translateY(0)"
 					item.collapse(false, false)
 					item.unHidePlus()
-					log "Drag Stopped"
+					log "Drag Stopped 2"
 			return false
 		,element
 
@@ -435,43 +455,39 @@ exports.renderList = !->
 			# if draggedElementY > liY and draggedElementY < liY+liHalf+liHalf
 				# I am visually hovering over someone!
 
+			# Check if we are moving over the top or bottom half of an item
+
 			if draggedElementY > liY+liHalf+liPlusOffset and oldY <= liY+liHalf+liPlusOffset
 				overElement = item.order
 				dragPosition = item.order
 				if liPlus
-					draggedIndeting = item.depth - draggedElement.depth 
-					log "^>setting DI to", draggedIndeting, item.depth
+					draggedIndeting = item.depth - draggedElement.depth
 				else
 					draggedIndeting = (if items[i+1] then items[i+1].depth else 0) - draggedElement.depth # set depth to item beneath us
-					log "^setting DI to", draggedIndeting
 				break
 			else if draggedElementY < liY+liHalf+liPlusOffset and oldY >= liY+liHalf+liPlusOffset
 				overElement = item.order
 				dragPosition = item.order - 1 # does this work with hidden stuff?
 				draggedIndeting = item.depth - draggedElement.depth # set depth to item beneath us
-				log "setting DI to", draggedIndeting
 				break
 
-			if liPlus
+			if liPlus # And do the same on the "+ Add Subselement"
 				liY = liY + liHalf + liHalf + item.getPlusOffset() - 17.5
 				# log "check", liY, "(",oldly, (liHalf*2),item.plusOffset.peek(), ") |", draggedElementY
 				if draggedElementY > liY and oldY <= liY # from above
 					# indentPlus = if item.getShowPlus() == item.key then 1 else 0
 					# log item.getShowPlus(), item.key
 					if item.getShowPlus() == parseInt(item.key)
-						log "whut huwt"
 						indentPlus = 1
 					indentPlus = 0
 					plusElement = item.order
 					draggedIndeting = (if items[i+1] then items[i+1].depth else 0) + indentPlus - draggedElement.depth
-					log "+^ setting DI to", draggedIndeting, indentPlus
 					break
 				else if draggedElementY < liY and oldY >= liY # from below
 					indentPlus = if item.getShowPlus() is parseInt(item.key) then 1 else 0
 					log item.getShowPlus(), item.key
 					plusElement = item.order
 					draggedIndeting = item.depth + indentPlus - draggedElement.depth # set depth to item
-					log "+ setting DI to", draggedIndeting, indentPlus
 					break
 
 		# actually visually position the dragged element
@@ -514,6 +530,8 @@ exports.renderList = !->
 			item.setPlusOffset t
 		oldY = draggedElementY
 
+	# End of item class stuff.
+
 	Dom.style
 		overflowX: 'hidden'
 		_userSelect: 'none'
@@ -532,9 +550,8 @@ exports.renderList = !->
 			Dom.style paddingLeft: '10px'
 			save = !->
 				return if !addE.value().trim()
-				Server.sync 'add', addE.value().trim(), !->
-					id = Db.shared.incr 'maxId'
-					Db.shared.set('items', id, {time:0, by:Plugin.userId(), text: addE.value().trim()})
+				Server.sync 'add', addE.value().trim(), 1, 0, !->
+					SF.add(addE.value().trim(), 1, 0, Plugin.userId())
 					# Sigh, and do order stuff...
 				addE.value ""
 				editingItem.set(false)

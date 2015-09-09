@@ -87,10 +87,9 @@ exports.renderList = !->
 
 			Dom.div !->
 				Dom.addClass "sortItem"
-				itemDE = Dom.get()
 				Dom.style
-					minHeight: '50px'
 					Box: 'middle'
+
 				# Rearrange icon
 				Dom.div !->
 					Dom.style
@@ -101,19 +100,22 @@ exports.renderList = !->
 						color: '#999'
 					dragToReorder item
 
-				# Content and avatar
+				# The Box
 				Dom.div !->
+					itemDE = Dom.get()
+					item.contentElement = Dom.get()
+					Dom.addClass "sortItem"
 					Dom.style
 						Flex: 1
 						Box: 'left middle'
-						padding: "0 0 0 #{item.depth*15}" # reactive
+						# padding: "0 0 0 #{item.depth*15}" # reactive
+						margin: "2 2 2 #{item.depth*15}" # reactive
+						backgroundColor: '#fff'
+						borderRadius: '2px'
 
+					# Content and avatar
 					Dom.div !->
-						item.contentElement = Dom.get()
 						Dom.style
-							transition_: 'transform 0.2s ease-out'
-							WebkitTransition_: 'transform 0.2s ease-out'
-							_backfaceVisibility: 'hidden'
 							boxSizing: 'border-box'
 							Box: 'middle'
 							Flex: 1
@@ -161,62 +163,63 @@ exports.renderList = !->
 									Dom.text notes
 						Dom.div !->
 							Event.renderBubble [item.key]
+						Dom.div !->
+							Dom.style
+								marginRight: '4px'
+								# height: '60px'
+								# Box: 'middle'
+								position: 'relative'
+							assigned = item.assigned
+							if !assigned? or assigned.length is 0
+								# Do nothing
+							else if assigned.length is 1
+								Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
+							else if assigned.length > 1
+								Ui.avatar '#666', size: 30, style: margin: '0 0 0 8px'
+								Dom.div !->
+									Dom.style
+										position: 'absolute'
+										top: '10px'
+										width: '100%'
+										marginLeft: '4px'
+										textAlign: 'center'
+										color: '#fff'
+									Dom.text assigned.length
+						Dom.onTap !->
+							Page.nav item.key
+						if mobile then item.dragToComplete itemDE
+
+					Obs.observe !->
+						ad = item.arrowO.get()
+						if ad isnt 0
+							Dom.div !->
+								Dom.style marginLeft: '2px'
+								Icon.render
+									data: if ad is 1 then 'arrowup' else 'arrowdown'
+									color: '#999'
+
+								Dom.onTap !->
+									item.collapse(false, true)
+
+					# Overflow menu
+					# Form.vSep()
+					# Dom.last().style margin: '0px'
 					Dom.div !->
 						Dom.style
-							marginRight: '4px'
-							# height: '60px'
-							# Box: 'middle'
-							position: 'relative'
-						assigned = item.assigned
-						if !assigned? or assigned.length is 0
-							# Do nothing
-						else if assigned.length is 1
-							Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
-						else if assigned.length > 1
-							Ui.avatar '#666', size: 30, style: margin: '0 0 0 8px'
-							Dom.div !->
-								Dom.style
-									position: 'absolute'
-									top: '10px'
-									width: '100%'
-									marginLeft: '4px'
-									textAlign: 'center'
-									color: '#fff'
-								Dom.text assigned.length
-					Dom.onTap !->
-						Page.nav item.key
-					if mobile then item.dragToComplete itemDE
-
-				Obs.observe !->
-					ad = item.arrowO.get()
-					if ad isnt 0
-						Dom.div !->
-							Icon.render
-								data: if ad is 1 then 'arrowup' else 'arrowdown'
-								color: '#999'
-
-							Dom.onTap !->
-								item.collapse(false, true)
-
-				# Overflow menu
-				# Form.vSep()
-				# Dom.last().style margin: '0px'
-				Dom.div !->
-					Dom.style
-						padding: '8px'
-					Icon.render
-						data: 'more'
-						color: '#999'
-					Dom.onTap !->
-						# from pointers to keys
-						ch = []
-						findChild = (a) !->
-							ch.push a.key
-							for b in a.children
-								findChild b
-						findChild item
-						Menu.renderMenu(item.key, ch, item)
-			Form.sep()
+							padding: '8px'
+						Icon.render
+							data: 'more'
+							color: '#999'
+						Dom.onTap !->
+							# from pointers to keys
+							ch = []
+							findChild = (a) !->
+								ch.push a.key
+								for b in a.children
+									findChild b
+							findChild item
+							Menu.renderMenu(item.key, ch, item)
+				# Form.sep()
 
 			if (p = item.showPlus.get()) >= 0
 				Dom.div !->
@@ -224,7 +227,8 @@ exports.renderList = !->
 					# Obs.observe !->
 					offset = item.plusOffset.get()
 					d = if p is parseInt(item.key) then 1 else 0
-					desktopOffset = if mobile then 38 else 82
+					# desktopOffset = if mobile then 38 else 82
+					desktopOffset = if mobile then 32 else 76
 					Dom.addClass "sortItem"
 					Dom.style
 						_transform: "translateY(#{offset + 'px'})"
@@ -245,14 +249,17 @@ exports.renderList = !->
 							text: tr("+ Add subitem")
 							onChange: (v) !->
 									# item.editingItem.set (false)
-								if v.trim().length or item.editingItem.peek() isnt 'focus'
+								if v?.trim().length or item.editingItem.peek() isnt 'focus'
 									item.editingItem.set(!!v?.trim())
 							onReturn: save
 							inScope: !->
 								Dom.style
 									Flex: 1
-									padding: "8 0 8 #{(item.depth+d)*15 + desktopOffset - 15}" # reactive. Last 15 is so it looks less 'indented' ;)
+									padding: '8px'
+									margin: "0 0 2 #{(item.depth+d)*15 + desktopOffset}" # reactive. Last 15 is so it looks less 'indented' ;)
 									display: 'block'
+									backgroundColor: '#fff'
+									borderRadius: '2px'
 									border: 'none'
 									fontSize: '100%'
 						if item.editingItem.peek() is 'focus' # sneaky using an existing obs to set focus.
@@ -265,7 +272,7 @@ exports.renderList = !->
 								Dom.style visibility: (if item.editingItem.get() then 'visible' else 'hidden')
 								Dom.text tr("Add")
 							, save
-					Form.sep()
+					# Form.sep()
 
 		seekChildren: !->
 			@children = []
@@ -491,7 +498,7 @@ exports.renderList = !->
 		# actually visually position the dragged element
 		draggedElement.element.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
 		draggedElement.contentElement.style _transform: "translateX(#{draggedIndeting*15 + 'px'})"
-		draggedElement.contentElement.style paddingRight: "#{(draggedIndeting*15+4) + 'px'}"
+		# draggedElement.contentElement.style paddingRight: "#{(draggedIndeting*15+4) + 'px'}"
 
 		# move element out of the way
 		if overElement >= 0 and item.key
@@ -535,13 +542,14 @@ exports.renderList = !->
 		_userSelect: 'none'
 
 	editingItem = Obs.create(false)
-	Ui.list !->
+	Dom.div !->
 		Dom.style
-			backgroundColor: '#fff'
 			margin: '-8px -8px 0px'
-			borderBottom: '1px solid #aaa'
-			borderRadius: '0px'
-			_boxShadow: "0 1px 2px rgba(0,0,0,.1)"
+			# backgroundColor: '#fff'
+			# borderBottom: '1px solid #aaa'
+			# borderRadius: '0px'
+			# _boxShadow: "0 1px 2px rgba(0,0,0,.1)"
+			padding: '8px'
 
 		# Top entry: adding an item
 		Ui.item !->
@@ -636,7 +644,6 @@ Dom.css
 	".sortItem.dragging":
 		position: 'relative'
 		zIndex: 99999
-		backgroundColor: '#fff'
 		opacity: '0.8'
 		_transition: 'none'
 		_backfaceVisibility: 'hidden'

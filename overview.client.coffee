@@ -192,7 +192,7 @@ exports.renderList = !->
 					if ad isnt 0
 						Dom.div !->
 							Icon.render
-								data: if ad is -1 then 'arrowup' else 'arrowdown'
+								data: if ad is 1 then 'arrowup' else 'arrowdown'
 								color: '#999'
 
 							Dom.onTap !->
@@ -244,15 +244,21 @@ exports.renderList = !->
 							name: 'item' + item.key
 							text: tr("+ Add subitem")
 							onChange: (v) !->
-								item.editingItem.set(!!v?.trim())
+									# item.editingItem.set (false)
+								if v.trim().length or item.editingItem.peek() isnt 'focus'
+									item.editingItem.set(!!v?.trim())
 							onReturn: save
 							inScope: !->
 								Dom.style
 									Flex: 1
-									padding: "8 0 8 #{(item.depth+d)*15 + desktopOffset}" # reactive
+									padding: "8 0 8 #{(item.depth+d)*15 + desktopOffset - 15}" # reactive. Last 15 is so it looks less 'indented' ;)
 									display: 'block'
 									border: 'none'
 									fontSize: '100%'
+						if item.editingItem.peek() is 'focus' # sneaky using an existing obs to set focus.
+							Obs.onTime 450, !->
+								log "focus"
+								addE.focus()
 
 						Obs.observe !->
 							Ui.button !->

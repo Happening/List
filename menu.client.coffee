@@ -23,8 +23,9 @@ exports.renderMenu = (key, children, item) !->
 				maxHeight: '70%'
 				backgroundColor: '#eee'
 				margin: '-12px'
+				padding: '8px'
 			Dom.overflow()
-			Ui.list !->
+			Dom.div !->
 				Ui.item !->
 					value = Db.shared.get('items', key, 'completed')
 					Dom.span !->
@@ -40,7 +41,7 @@ exports.renderMenu = (key, children, item) !->
 				Ui.item !->
 					Dom.span !->
 						Dom.style Flex: 1
-						Dom.text tr("Allow subitems")
+						Dom.text tr("Add subitem")
 					Dom.span !->
 						Dom.style fontSize: '30px', paddingRight: '4px'
 						Icon.render
@@ -49,12 +50,14 @@ exports.renderMenu = (key, children, item) !->
 							size: 22
 							style: {marginRight: '2px'}
 					Dom.onTap !->
+						item.editingItem.set('focus')
 						item.setShowPlus(key)
 						# Modal.prompt tr("Add subitem")
 						# , (value) !->
 						# 	Server.sync 'add', value, key, !->
 						# 		SF.add(value, key, Plugin.userId())
 						Modal.remove()
+
 
 				if Plugin.userId() is Db.shared.peek('items', key, 'by') or Plugin.userIsAdmin()
 					Ui.item !->
@@ -108,6 +111,7 @@ exports.selectMember = selectMember = (key, observable = null) ->
 							textAlign: 'right'
 						Icon.render
 							data: 'done'
+							style: {marginRight: '5px'}
 				else
 					Dom.style fontWeight: 'normal'
 				Dom.onTap !->

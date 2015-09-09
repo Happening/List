@@ -243,6 +243,7 @@ exports.renderList = !->
 							item.editingItem.set(false)
 							Form.blur()
 
+						log "Ding!", item.text
 						addE = Form.input
 							simple: true
 							name: 'item' + item.key
@@ -637,8 +638,6 @@ exports.renderList = !->
 			margin: '20px'
 			color: '#999'
 		Dom.text tr("Swipe an item left to check it, and to the right to uncheck it")
-	Ui.bigButton "reset order", !->
-		Server.call "resetOrder"
 
 Dom.css
 	".sortItem.dragging":

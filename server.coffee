@@ -52,9 +52,3 @@ exports.client_assign = assign = (id, user) !->
 exports.client_collapse = (key, value) !->
 	log "collapse", key, value
 	Db.personal(Plugin.userId()).set 'collapsed', key, value
-
-exports.client_resetOrder = !->
-	order = 0
-	Db.shared.forEach 'items', (item) !->
-		item.set 'order', ++order
-		item.set 'depth', 0

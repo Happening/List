@@ -93,6 +93,8 @@ renderItem = (itemId) !->
 
 		Form.sep()
 
+		emptyO = Obs.create(true)
+
 		Form.box !->
 			Dom.style
 				width: '100%'
@@ -103,27 +105,21 @@ renderItem = (itemId) !->
 				Dom.style
 					textAlign: 'center'
 					margin: '0px -4px'
-				if item.get("assigned") and item.get("assigned").length > 0
-					for a in item.get('assigned')
-						Dom.div !->
-							Dom.style
+				emptyO.set true
+				for a of item.get("assigned")
+					emptyO.set false
+					Dom.div !->
+						Dom.style
+							display: 'inline-block'
+							textAlign: 'center'
+							position: 'relative'
+							padding: '2px'
+
+						Ui.avatar Plugin.userAvatar(a),
+							style:
 								display: 'inline-block'
-								textAlign: 'center'
-								position: 'relative'
-								padding: '2px'
-								# boxSizing: 'border-box'
-								# borderRadius: '2px'
-								# width: '60px'
-
-							Ui.avatar Plugin.userAvatar(a),
-								style:
-									display: 'inline-block'
-									margin: '0 0 1px 0'
-
-							# Dom.div !->
-							# 	Dom.style fontSize: '18px'
-							# 	Dom.text Form.smileyToEmoji Plugin.userName(a)
-				else
+								margin: '0 0 1px 0'
+				if emptyO.get()
 					Dom.h4 !->
 						Dom.style
 							fontSize: '120%'

@@ -26,32 +26,17 @@ exports.renderMenu = (key, children, item) !->
 			Dom.overflow()
 			Ui.list !->
 				Ui.item !->
-					if Db.shared.peek('items', key, 'completed')
-						Dom.span !->
-							Dom.style Flex: 1
-							Dom.text tr("Set to uncompleted")
-						Icon.render
-							data: 'cancel'
-							size: 20
-							color: '#444'
-							style: {marginRight: '1px'}
-						Dom.onTap !->
-							Server.sync 'complete', key, false, !->
-								Db.shared.set 'items', key, 'completed', false
-							Modal.remove()
-					else
-						Dom.span !->
-							Dom.style Flex: 1
-							Dom.text tr("Mark as Complete")
-						Dom.span !->
-							Dom.style fontSize: '30px'
-							Icon.render
-								data: 'done'
-								color: '#444'
-						Dom.onTap !->
-							Server.sync 'complete', key, true, !->
-								Db.shared.set 'items', key, 'completed', true
-							Modal.remove()
+					value = Db.shared.get('items', key, 'completed')
+					Dom.span !->
+						Dom.style Flex: 1
+						Dom.text tr("Set to uncompleted")
+					complete = Form.check
+						simple: true
+						value: value
+					Dom.onTap !->
+						Server.sync 'complete', key, !value, !->
+							Db.shared.set 'items', key, 'completed', !value
+						Modal.remove()
 				Ui.item !->
 					Dom.span !->
 						Dom.style Flex: 1
@@ -60,8 +45,9 @@ exports.renderMenu = (key, children, item) !->
 						Dom.style fontSize: '30px', paddingRight: '4px'
 						Icon.render
 							data: 'add'
-							color: '#444'
-							style: {marginRight: '-4px'}
+							color: Plugin.colors().highlight
+							size: 22
+							style: {marginRight: '2px'}
 					Dom.onTap !->
 						item.setShowPlus(key)
 						# Modal.prompt tr("Add subitem")
@@ -77,9 +63,10 @@ exports.renderMenu = (key, children, item) !->
 							Dom.text tr("Delete")
 						Icon.render
 							data: 'trash2'
-							color: '#444'
+							color: Plugin.colors().highlight
+							style: {marginRight: '5px'}
 						Dom.onTap !->
-							Modal.confirm null, tr("Are you sure you want to delete this item?"), !->
+							Modal.confirm null, (if children.length>1 then tr("Are you sure you want to delete this item and its #{children.length-1} subitems?") else tr("Are you sure you want to delete this item?")), !->
 								Server.sync 'remove', key, children, !->
 									SF.remove(key, children)
 								Modal.remove()
@@ -91,12 +78,11 @@ exports.renderMenu = (key, children, item) !->
 exports.selectMember = selectMember = (key) !->
 	Plugin.users.observeEach (user) !->
 		Ui.item !->
-			Ui.avatar user.get('avatar')
-			Dom.text user.get('name')
+			Ui.avatar user.peek('avatar')
+			Dom.text user.peek('name')
+			log "render", user.peek('name'), Db.shared.peek('items', key, 'assigned', user.key())
 
-			ass = Db.shared.get('items', key, 'assigned')
-			if ass and parseInt(user.key()) in ass
-				log "jup"
+			if Db.shared.get('items', key, 'assigned', user.key())
 				Dom.style fontWeight: 'bold'
 
 				Dom.div !->
@@ -110,4 +96,7 @@ exports.selectMember = selectMember = (key) !->
 			Dom.onTap !->
 				log user.key()
 				Server.sync 'assign', key, parseInt(user.key()), !->
-					Db.shared.set('items', key, 'assigned', user.key())
+					if Db.shared.get('items', key, 'assigned', user.key())
+						Db.shared.remove('items', key, 'assigned', user.key())
+					else
+						Db.shared.set('items', key, 'assigned', user.key(), true)

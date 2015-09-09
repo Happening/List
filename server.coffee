@@ -34,25 +34,19 @@ exports.client_remove = (id, children) !->
 	SF.remove(id, children)
 
 exports.client_complete = (id, value) !->
-	log "setting completed", id
+	log "setting completed", id, value
 	if Db.shared.get('items', id)
 		Db.shared.set 'items', id, 'completed', !!value
 
 exports.client_reorder = (id, pos, indent, length = 1) !->
 	SF.reorder id, pos, indent, length
 
-exports.client_assign = (id, user = Plugin.userId()) !->
+exports.client_assign = (id, user) !->
 	log "assigneing", id, user
-	if ass = Db.shared.get('items', id, 'assigned')
-		if user in ass
-			ass.splice(ass.indexOf(user), 1)
-			Db.shared.set 'items', id, 'assigned', ass
-		else
-			ass.push user
-			Db.shared.set 'items', id, 'assigned', ass
-			# Db.shared.set id, 'assigned', user
+	if Db.shared.get('items', id, 'assigned', user)
+		Db.shared.remove('items', id, 'assigned', user)
 	else
-		Db.shared.set 'items', id, 'assigned', [user]
+		Db.shared.set('items', id, 'assigned', user, true)
 
 exports.client_collapse = (key, value) !->
 	log "collapse", key, value

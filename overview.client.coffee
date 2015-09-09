@@ -41,7 +41,7 @@ exports.renderList = !->
 			@depth = dbRef.peek('depth')
 			@text = dbRef.peek('text')
 			@notes = dbRef.peek('notes')
-			@assigned = dbRef.peek('assigned')
+			@assigned = []
 			@completed = dbRef.peek('completed')
 			@children = []
 			@treeLength = 1 # always yourself
@@ -65,7 +65,8 @@ exports.renderList = !->
 				item.depth = dbRef.get('depth')
 				item.text = dbRef.get('text')
 				item.notes = dbRef.get('notes')
-				item.assigned = dbRef.get('assigned')
+				item.assigned = []
+				item.assigned.push k for k of dbRef.get('assigned')
 				item.completed = dbRef.get('completed')
 				# just rerender when one of the above attributes change...
 				item.render()
@@ -197,8 +198,8 @@ exports.renderList = !->
 								item.collapse(false, true)
 
 				# Overflow menu
-				Form.vSep()
-				Dom.last().style margin: '0px'
+				# Form.vSep()
+				# Dom.last().style margin: '0px'
 				Dom.div !->
 					Dom.style
 						padding: '8px'
@@ -353,10 +354,10 @@ exports.renderList = !->
 						dragDirection = 0
 						if touches[0].x > swipeToCompleteTreshold # treshhold
 							Server.sync 'complete', key, true, !->
-								Db.shared.set key, 'completed', true
+								Db.shared.set 'items', key, 'completed', true
 						if touches[0].x < -swipeToCompleteTreshold # treshhold
 							Server.sync 'complete', key, false, !->
-								Db.shared.set key, 'completed', false
+								Db.shared.set 'items', key, 'completed', false
 						element.removeClass "dragging"
 						element.style _transform: "translateX(0px)"
 				return dragDirection < 1 # do default

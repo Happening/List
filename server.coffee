@@ -19,12 +19,13 @@ exports.client_add = add = (text, order, depth, parent) !->
 			text: "#{name} added an item: #{text}"
 			sender: Plugin.userId()
 
-exports.client_edit = (itemId, values) !->
-	if values.subitem# add this item
+exports.client_edit = (itemId, values, assigned) !->
+	if values.subitem # add this item
 		item = Db.shared.get('items', itemId)
 		add values.subitem, item.order+1, item.depth+1, itemId
 		values.subitem = null # rem
 	Db.shared.merge('items', itemId, values)
+	Db.shared.set('items', itemId, 'assigned', assigned)
 
 exports.client_setText = (id, text) !->
 	Db.shared.set('items', id, 'text', text)
@@ -41,7 +42,7 @@ exports.client_complete = (id, value) !->
 exports.client_reorder = (id, pos, indent, length = 1) !->
 	SF.reorder id, pos, indent, length
 
-exports.client_assign = (id, user) !->
+exports.client_assign = assign = (id, user) !->
 	log "assigneing", id, user
 	if Db.shared.get('items', id, 'assigned', user)
 		Db.shared.remove('items', id, 'assigned', user)

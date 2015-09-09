@@ -34,11 +34,18 @@ renderItem = (itemId) !->
 					Server.sync 'remove', itemId, !->
 						Db.shared.remove(itemId)
 					Page.back()
+
+	assO = Obs.create(item.peek("assigned"))
+	Obs.observe !->
+		assO.set(item.get("assigned"))
+
 	Dom.div !->
 		Dom.style margin: '-8px -8px 0', backgroundColor: '#f8f8f8', borderBottom: '2px solid #ccc'
 
 		Form.setPageSubmit (values) !->
-			Server.sync "edit", itemId, values, !->
+			log values.assigned
+			Server.sync "edit", itemId, values, assO.peek(), !->
+				values.subitem = null
 				Db.shared.merge itemId, values
 			Page.back()
 
@@ -94,6 +101,7 @@ renderItem = (itemId) !->
 		Form.sep()
 
 		emptyO = Obs.create(true)
+		Form.hidden('assigned', assO.func())
 
 		Form.box !->
 			Dom.style
@@ -106,7 +114,8 @@ renderItem = (itemId) !->
 					textAlign: 'center'
 					margin: '0px -4px'
 				emptyO.set true
-				for a of item.get("assigned")
+				# assF.value = []
+				for a of assO.get()
 					emptyO.set false
 					Dom.div !->
 						Dom.style
@@ -134,7 +143,7 @@ renderItem = (itemId) !->
 								backgroundColor: '#eee'
 								margin: '-12px'
 							Dom.overflow()
-							Menu.selectMember(itemId)
+							Menu.selectMember(itemId, assO)
 
 	Dom.div !->
 		Dom.style margin: '0 -8px'

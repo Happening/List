@@ -16,6 +16,7 @@ exports.add = (text, order, depth, userId) !->
 			by: userId
 			order: order
 			depth: depth
+			assigned: {}
 	else
 		item =
 			text: text
@@ -23,6 +24,7 @@ exports.add = (text, order, depth, userId) !->
 			by: userId
 			order: o
 			depth: 0
+			assigned: {}
 
 	# reorder to make room
 	Db.shared.forEach 'items', (item) !->

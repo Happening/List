@@ -75,28 +75,44 @@ exports.renderMenu = (key, children, item) !->
 				selectMember(key)
 
 # input that handles selection of a member
-exports.selectMember = selectMember = (key) !->
+exports.selectMember = selectMember = (key, observable = null) ->
 	Plugin.users.observeEach (user) !->
 		Ui.item !->
 			Ui.avatar user.peek('avatar')
 			Dom.text user.peek('name')
-			log "render", user.peek('name'), Db.shared.peek('items', key, 'assigned', user.key())
 
-			if Db.shared.get('items', key, 'assigned', user.key())
-				Dom.style fontWeight: 'bold'
+			if observable # local obs
+				if observable.get(user.key())
+					Dom.style fontWeight: 'bold'
 
-				Dom.div !->
-					Dom.style
-						Flex: 1
-						textAlign: 'right'
-					Icon.render
-						data: 'done'
-			else
-				Dom.style fontWeight: 'normal'
-			Dom.onTap !->
-				log user.key()
-				Server.sync 'assign', key, parseInt(user.key()), !->
-					if Db.shared.get('items', key, 'assigned', user.key())
-						Db.shared.remove('items', key, 'assigned', user.key())
+					Dom.div !->
+						Dom.style
+							Flex: 1
+							textAlign: 'right'
+						Icon.render
+							data: 'done'
+				else
+					Dom.style fontWeight: 'normal'
+				Dom.onTap !->
+					if observable.get(user.key())
+						observable.remove(user.key())
 					else
-						Db.shared.set('items', key, 'assigned', user.key(), true)
+						observable.set(user.key(), true)
+			else # shared
+				if Db.shared.get('items', key, 'assigned', user.key())
+					Dom.style fontWeight: 'bold'
+
+					Dom.div !->
+						Dom.style
+							Flex: 1
+							textAlign: 'right'
+						Icon.render
+							data: 'done'
+				else
+					Dom.style fontWeight: 'normal'
+				Dom.onTap !->
+					Server.sync 'assign', key, parseInt(user.key()), !->
+						if Db.shared.get('items', key, 'assigned', user.key())
+							Db.shared.remove('items', key, 'assigned', user.key())
+						else
+							Db.shared.set('items', key, 'assigned', user.key(), true)

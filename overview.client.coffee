@@ -101,29 +101,13 @@ exports.renderList = !->
 						color: '#999'
 					dragToReorder item
 
-				#checkbox for desktop
-				if !mobile
-					Dom.div !->
-						Dom.style Box: 'center middle'
-						Form.vSep()
-						item.completed
-							# temp fix for problems arising from marking completed in edit item screen
-						Form.check
-							value: item.completed
-							inScope: !->
-								Dom.style padding: '28px 32px 28px 14px'
-							onChange: (v) !->
-								Server.sync 'complete', item.key, v, !->
-									Db.shared.set('items', item.key, 'completed', v)
-						Form.vSep()
-
-
 				# Content and avatar
 				Dom.div !->
 					Dom.style
 						Flex: 1
 						Box: 'left middle'
 						padding: "0 0 0 #{item.depth*15}" # reactive
+
 					Dom.div !->
 						item.contentElement = Dom.get()
 						Dom.style
@@ -138,6 +122,23 @@ exports.renderList = !->
 							color: if item.completed then '#aaa' else 'inherit'
 							fontSize: '16px' #'21px'
 							wordBreak: 'break-word'
+
+						#checkbox for desktop
+						if !mobile
+							Dom.div !->
+								Dom.style Box: 'center middle'
+								# Form.vSep()
+								item.completed
+									# temp fix for problems arising from marking completed in edit item screen
+								Form.check
+									value: item.completed
+									inScope: !->
+										Dom.style margin: '0px 5px 0px -10px'
+									onChange: (v) !->
+										Server.sync 'complete', item.key, v, !->
+											Db.shared.set('items', item.key, 'completed', v)
+								# Form.vSep()
+
 						Dom.div !->
 							Dom.style
 								Flex: 1

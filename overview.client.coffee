@@ -184,7 +184,7 @@ exports.renderList = !->
 									Dom.text assigned.length
 						if !item.inCompletedList
 							Dom.onTap !->
-								Page.nav item.key
+								Page.nav {0:item.key, "?children": item.childrenKeys}
 						if mobile then item.dragToComplete itemDE
 
 					Obs.observe !->
@@ -213,14 +213,7 @@ exports.renderList = !->
 							color: '#bbb'
 							size: 16
 						Dom.onTap !->
-							# from pointers to keys
-							ch = []
-							findChild = (a) !->
-								ch.push a.key
-								for b in a.children
-									findChild b
-							findChild item
-							Menu.renderMenu(item.key, ch, item)
+							Menu.renderMenu(item.key, item.childrenKeys, item)
 				# Form.sep()
 
 				# Rearrange icon
@@ -250,6 +243,12 @@ exports.renderList = !->
 						Dom.addClass "sortItem"
 						Dom.style
 							_transform: "translateY(#{offset + 'px'})"
+							padding: '4px 4px 4px 8px'
+							# height: '50px'
+							margin: "2 32 2 #{(item.depth+d)*15 + desktopOffset}" # reactive. Last 15 is so it looks less 'indented' ;)
+							display: 'block'
+							backgroundColor: '#fff'
+							borderRadius: '2px'
 						Dom.div !->
 							Dom.style Box: 'middle'
 							save = !->
@@ -273,11 +272,6 @@ exports.renderList = !->
 								inScope: !->
 									Dom.style
 										Flex: 1
-										padding: '8px'
-										margin: "0 0 2 #{(item.depth+d)*15 + desktopOffset}" # reactive. Last 15 is so it looks less 'indented' ;)
-										display: 'block'
-										backgroundColor: '#fff'
-										borderRadius: '2px'
 										border: 'none'
 										fontSize: '100%'
 							if item.editingItem.peek() is 'focus' # sneaky using an existing obs to set focus.

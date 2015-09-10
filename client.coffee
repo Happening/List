@@ -14,6 +14,7 @@ Ui = require 'ui'
 {tr} = require 'i18n'
 Overview = require 'overview'
 Menu = require 'menu'
+SF = require 'serverFunctions'
 
 exports.render = !->
 	itemId = Page.state.get(0)
@@ -23,16 +24,17 @@ exports.render = !->
 		Overview.renderList()
 
 renderItem = (itemId) !->
-	Page.setTitle tr("Item")
 	item = Db.shared.ref 'items', itemId
+	children = Page.state.get("?children")
+	Page.setTitle Form.smileyToEmoji(""+item.get("text"))
 	Event.showStar item.get('text')
 	if Plugin.userId() is item.get('by') or Plugin.userIsAdmin()
 		Page.setActions
 			icon: 'trash'
 			action: !->
-				Modal.confirm null, tr("Delete item?"), !->
-					Server.sync 'remove', itemId, !->
-						Db.shared.remove(itemId)
+				Modal.confirm null, (if children.length>1 then tr("Are you sure you want to delete this item and its %1 subitem|s?", children.length-1) else tr("Are you sure you want to delete this item?")), !->
+					Server.sync 'remove', itemId, children, !->
+						SF.remove(itemId, children)
 					Page.back()
 
 	assO = Obs.create(item.peek("assigned"))
@@ -54,7 +56,7 @@ renderItem = (itemId) !->
 			Dom.style padding: '8px'
 			Dom.style Box: 'right'
 			if editTextO.get()
-				Form.input
+				Form.text
 					name: 'text'
 					value: item.func('text')
 					title: tr("Item")

@@ -54,7 +54,7 @@ exports.reorder = (id, pos, indentDelta, length = 1) !->
 				item.incr 'depth', indentDelta
 				log "SF: incr depth by", indentDelta, item.get('order')
 
-exports.remove = (key, children) !->
+exports.remove = remove = (key, children) !->
 	o = Db.shared.get('items', key, 'order')
 	for c in children # mind you, the parent is also in this list
 		Db.shared.remove('items', c)
@@ -62,3 +62,10 @@ exports.remove = (key, children) !->
 	Db.shared.forEach 'items', (item) !->
 		if item.get('order') >o
 			item.incr 'order', -(children.length)
+
+exports.hideCompleted = (key, children) !->
+	#for each item
+	o = Db.shared.get('items', key, 'order')
+	for c in children # mind you, the parent is also in this list
+		Db.shared.set 'completed', c, Db.shared.get('items', c)
+		# Db.shared.remove('items', c)

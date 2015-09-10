@@ -52,13 +52,17 @@ exports.renderList = !->
 			@showPlus = Obs.create(-1)
 			@plusOffset = Obs.create(0)
 			@editingItem = Obs.create(false)
+			@pCompletedO = Obs.create(false)
 			@plusElement = null
 			@contentElement = @element
 			item = this
 
 			# if we are ad depth 0 and new, show +
-			if @depth is 0 and Event.isNew(item.time)
-				@showPlus.set @key
+			log Db.local.peek('new'), "|", @key
+			if parseInt(Db.local.peek('new')) is @key # I just added this
+				# if no children...
+				if @depth is 0 and Event.isNew(item.time)
+					@showPlus.set @key
 
 			Obs.observe !->
 				item.order = dbRef.get('order')
@@ -90,16 +94,6 @@ exports.renderList = !->
 				Dom.style
 					Box: 'middle'
 
-				# Rearrange icon
-				Dom.div !->
-					Dom.style
-						padding: "8px"
-						marginLeft: "-8px"
-					Icon.render
-						data: 'reorder'
-						color: '#999'
-					dragToReorder item
-
 				# The Box
 				Dom.div !->
 					itemDE = Dom.get()
@@ -109,7 +103,7 @@ exports.renderList = !->
 						Flex: 1
 						Box: 'left middle'
 						# padding: "0 0 0 #{item.depth*15}" # reactive
-						margin: "2 2 2 #{item.depth*15}" # reactive
+						margin: "2 0 2 #{item.depth*15}" # reactive
 						backgroundColor: '#fff'
 						borderRadius: '2px'
 
@@ -119,9 +113,9 @@ exports.renderList = !->
 							boxSizing: 'border-box'
 							Box: 'middle'
 							Flex: 1
-							padding: '8px 4px 8px 4px'
-							textDecoration: if item.completed then 'line-through' else 'none'
-							color: if item.completed then '#aaa' else 'inherit'
+							padding: '8px'
+							textDecoration: if item.completed or item.pCompletedO.get() then 'line-through' else 'none'
+							color: if item.completed or item.pCompletedO.get() then '#aaa' else 'inherit'
 							fontSize: '16px' #'21px'
 							wordBreak: 'break-word'
 
@@ -137,8 +131,7 @@ exports.renderList = !->
 									inScope: !->
 										Dom.style margin: '0px 5px 0px -10px'
 									onChange: (v) !->
-										Server.sync 'complete', item.key, v, !->
-											Db.shared.set('items', item.key, 'completed', v)
+										item.setCompleted(v)
 								# Form.vSep()
 
 						Dom.div !->
@@ -166,9 +159,7 @@ exports.renderList = !->
 						Dom.div !->
 							Dom.style
 								marginRight: '4px'
-								# height: '60px'
-								# Box: 'middle'
-								position: 'relative'
+								# position: 'relative'
 							assigned = item.assigned
 							if !assigned? or assigned.length is 0
 								# Do nothing
@@ -180,8 +171,8 @@ exports.renderList = !->
 									Dom.style
 										position: 'absolute'
 										top: '10px'
-										width: '100%'
-										marginLeft: '4px'
+										width: '32px'
+										margin: '8px 0px 0px 8px'
 										textAlign: 'center'
 										color: '#fff'
 									Dom.text assigned.length
@@ -207,9 +198,11 @@ exports.renderList = !->
 					Dom.div !->
 						Dom.style
 							padding: '8px'
+							margin: '8px 0px'
 						Icon.render
 							data: 'more'
-							color: '#999'
+							color: '#bbb'
+							size: 16
 						Dom.onTap !->
 							# from pointers to keys
 							ch = []
@@ -221,59 +214,69 @@ exports.renderList = !->
 							Menu.renderMenu(item.key, ch, item)
 				# Form.sep()
 
-			if (p = item.showPlus.get()) >= 0
+				# Rearrange icon
 				Dom.div !->
-					item.plusElement = Dom.get()
-					# Obs.observe !->
-					offset = item.plusOffset.get()
-					d = if p is parseInt(item.key) then 1 else 0
-					# desktopOffset = if mobile then 38 else 82
-					desktopOffset = if mobile then 32 else 76
-					Dom.addClass "sortItem"
 					Dom.style
-						_transform: "translateY(#{offset + 'px'})"
+						padding: "8px"
+						marginRight: "-8px"
+					Icon.render
+						data: 'reorder'
+						color: '#bbb'
+					dragToReorder item
+
+			Obs.observe !->
+				if (p = item.showPlus.get()) >= 0 and not item.arrowO.get()
 					Dom.div !->
-						Dom.style Box: 'middle'
-						save = !->
-							return if !addE.value().trim()
-							# d = if p is parseInt(item.key) then 1 else 0
-							Server.sync 'add', addE.value().trim(), item.order+1, item.depth + d, p, !->
-								SF.add(addE.value().trim(), item.order+1, item.depth + d, Plugin.userId())
-							addE.value ""
-							item.editingItem.set(false)
-							Form.blur()
+						item.plusElement = Dom.get()
+						# Obs.observe !->
+						offset = item.plusOffset.get()
+						d = if p is parseInt(item.key) then 1 else 0
+						# desktopOffset = if mobile then 38 else 82
+						desktopOffset = 0 # if mobile then 32 else 32
+						Dom.addClass "sortItem"
+						Dom.style
+							_transform: "translateY(#{offset + 'px'})"
+						Dom.div !->
+							Dom.style Box: 'middle'
+							save = !->
+								return if !addE.value().trim()
+								# d = if p is parseInt(item.key) then 1 else 0
+								Server.sync 'add', addE.value().trim(), item.order+1, item.depth + d, p, !->
+									SF.add(addE.value().trim(), item.order+1, item.depth + d, Plugin.userId())
+								addE.value ""
+								item.editingItem.set(false)
+								Form.blur()
 
-						log "Ding!", item.text
-						addE = Form.input
-							simple: true
-							name: 'item' + item.key
-							text: tr("+ Add subitem")
-							onChange: (v) !->
-									# item.editingItem.set (false)
-								if v?.trim().length or item.editingItem.peek() isnt 'focus'
-									item.editingItem.set(!!v?.trim())
-							onReturn: save
-							inScope: !->
-								Dom.style
-									Flex: 1
-									padding: '8px'
-									margin: "0 0 2 #{(item.depth+d)*15 + desktopOffset}" # reactive. Last 15 is so it looks less 'indented' ;)
-									display: 'block'
-									backgroundColor: '#fff'
-									borderRadius: '2px'
-									border: 'none'
-									fontSize: '100%'
-						if item.editingItem.peek() is 'focus' # sneaky using an existing obs to set focus.
-							Obs.onTime 450, !->
-								log "focus"
-								addE.focus()
+							addE = Form.input
+								simple: true
+								name: 'item' + item.key
+								text: tr("New subitem ...")
+								onChange: (v) !->
+										# item.editingItem.set (false)
+									if v?.trim().length or item.editingItem.peek() isnt 'focus'
+										item.editingItem.set(!!v?.trim())
+								onReturn: save
+								inScope: !->
+									Dom.style
+										Flex: 1
+										padding: '8px'
+										margin: "0 0 2 #{(item.depth+d)*15 + desktopOffset}" # reactive. Last 15 is so it looks less 'indented' ;)
+										display: 'block'
+										backgroundColor: '#fff'
+										borderRadius: '2px'
+										border: 'none'
+										fontSize: '100%'
+							if item.editingItem.peek() is 'focus' # sneaky using an existing obs to set focus.
+								Obs.onTime 450, !->
+									log "focus"
+									addE.focus()
 
-						Obs.observe !->
-							Ui.button !->
-								Dom.style visibility: (if item.editingItem.get() then 'visible' else 'hidden')
-								Dom.text tr("Add")
-							, save
-					# Form.sep()
+							Obs.observe !->
+								Ui.button !->
+									Dom.style visibility: (if item.editingItem.get() then 'visible' else 'hidden')
+									Dom.text tr("Add")
+								, save
+						# Form.sep()
 
 		seekChildren: !->
 			@children = []
@@ -281,15 +284,18 @@ exports.renderList = !->
 			if @order < items.length # if we are the last. We have no children.
 				for j in [@order..items.length-1]
 					i = items[j]
-					if i.depth is @depth+1
-						if i.getShowPlus() >= 0
-							i.setShowPlus -1 # remove subitem thing, so be sure
+					if i.depth is @depth+1 # No Luke, I am your father
+						if i.getShowPlus() >= 0 then i.setShowPlus -1 # remove subitem thing, so be sure
+						log "setting completed"
+						i.setpCompleted @completed
 						@children.push(i) # This makes a pointer right? Right?
 						++@treeLength
 					else
 						if i.depth <= @depth # Lower or equal depth means not my child
 							break
 						if i.depth > @depth+1 # higher indent means this is a grandchild of me
+							log "setting completed gc"
+							i.setpCompleted @completed
 							++@treeLength
 
 				# if I have children, set 'addSubItem' to the parent
@@ -329,6 +335,14 @@ exports.renderList = !->
 				@element.style display: 'inherit'
 				@hidden = false
 
+		setCompleted: (c) !->
+			log "setCompleted", c
+			k = @key
+			Server.sync 'complete', k, c, !->
+				Db.shared.set('items', k, 'completed', c)
+			#set to children
+			ch.setpCompleted(c) for ch in @children
+
 		setOffset: (offset) !->
 			@offsetO.set offset
 		getOffset: ->
@@ -345,9 +359,12 @@ exports.renderList = !->
 			@plusElement?.style display: 'none'
 		unHidePlus: !-> # show is taken
 			@plusElement?.style display: 'inherit'
+		setpCompleted: (c) !->
+			@pCompletedO.set c
 
 		dragToComplete: (element) !->
 			key = @key
+			item = this
 			# if mobile
 			Dom.trackTouch (touches...) ->
 				if dragDirection is -1
@@ -368,11 +385,9 @@ exports.renderList = !->
 					if touches[0].op&4 # touch is stopped
 						dragDirection = 0
 						if touches[0].x > swipeToCompleteTreshold # treshhold
-							Server.sync 'complete', key, true, !->
-								Db.shared.set 'items', key, 'completed', true
+							item.setCompleted true
 						if touches[0].x < -swipeToCompleteTreshold # treshhold
-							Server.sync 'complete', key, false, !->
-								Db.shared.set 'items', key, 'completed', false
+							item.setCompleted false
 						element.removeClass "dragging"
 						element.style _transform: "translateX(0px)"
 				return dragDirection < 1 # do default
@@ -429,6 +444,7 @@ exports.renderList = !->
 						Server.sync "reorder", elementO, dragPosition, draggedIndeting, item.treeLength, !->
 							SF.reorder elementO, dragPosition, draggedIndeting, item.treeLength
 					else
+						log "reset Y"
 						element.style _transform: "translateY(0)"
 					# reset lots of things
 					draggedElement = null
@@ -491,7 +507,6 @@ exports.renderList = !->
 					break
 				else if draggedElementY < liY and oldY >= liY # from below
 					indentPlus = if item.getShowPlus() is parseInt(item.key) then 1 else 0
-					log item.getShowPlus(), item.key
 					plusElement = item.order
 					draggedIndeting = item.depth + indentPlus - draggedElement.depth # set depth to item
 					break
@@ -554,9 +569,14 @@ exports.renderList = !->
 
 		# Top entry: adding an item
 		Ui.item !->
-			Dom.style paddingLeft: '10px'
+			Dom.style
+				paddingLeft: '10px'
+				backgroundColor: '#fff'
+				borderRadius: '2px'
+				marginRight: '32px'
 			save = !->
 				return if !addE.value().trim()
+				Db.local.set('new', (Db.shared.peek('maxId')|0)+1)
 				Server.sync 'add', addE.value().trim(), 1, 0, !->
 					SF.add(addE.value().trim(), 1, 0, Plugin.userId())
 					# Sigh, and do order stuff...
@@ -567,7 +587,7 @@ exports.renderList = !->
 			addE = Form.input
 				simple: true
 				name: 'item'
-				text: tr("+ Add")
+				text: tr("New item ...")
 				onChange: (v) !->
 					editingItem.set(!!v?.trim())
 				onReturn: save
@@ -638,6 +658,39 @@ exports.renderList = !->
 			margin: '20px'
 			color: '#999'
 		Dom.text tr("Swipe an item left to check it, and to the right to uncheck it")
+
+	Dom.div !->
+		Dom.style Box: 'middle'
+		Dom.div !->
+			Dom.style
+				Flex: 1
+				borderRadius: '2px'
+				padding: '8px'
+				margin: '4px'
+				textAlign: 'center'
+				backgroundColor: '#fff'
+			Dom.text "Hide completed"
+			Dom.onTap !->
+				for item, i in items
+					if item.completed
+						# from pointers to keys
+						ch = []
+						findChild = (a) !->
+							ch.push a.key
+							for b in a.children
+								findChild b
+						findChild item
+						Server.sync 'hideCompleted', item.key, ch !->
+							SF.hideCompleted(item.key, ch)
+		Dom.div !->
+			Dom.style
+				Flex: 1
+				padding: '8px'
+				margin: '4px'
+				textAlign: 'center'
+				borderRadius: '2px'
+				backgroundColor: '#fff'
+			Dom.text "Show completed"
 
 Dom.css
 	".sortItem.dragging":

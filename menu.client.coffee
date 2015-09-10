@@ -30,7 +30,7 @@ exports.renderMenu = (key, children, item) !->
 					value = Db.shared.get('items', key, 'completed')
 					Dom.span !->
 						Dom.style Flex: 1
-						Dom.text tr("Set to uncompleted")
+						Dom.text tr("Completed")
 					complete = Form.check
 						simple: true
 						value: value
@@ -69,7 +69,7 @@ exports.renderMenu = (key, children, item) !->
 							color: Plugin.colors().highlight
 							style: {marginRight: '5px'}
 						Dom.onTap !->
-							Modal.confirm null, (if children.length>1 then tr("Are you sure you want to delete this item and its #{children.length-1} subitems?") else tr("Are you sure you want to delete this item?")), !->
+							Modal.confirm null, (if children.length>1 then tr("Are you sure you want to delete this item and its %1 subitem|s?", children.length-1) else tr("Are you sure you want to delete this item?")), !->
 								Server.sync 'remove', key, children, !->
 									SF.remove(key, children)
 								Modal.remove()

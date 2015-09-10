@@ -20,6 +20,7 @@ dragScrollTreshold = 60 # in pixels
 exports.renderList = !->
 	mobile = Plugin.agent().ios or Plugin.agent().android
 	items = []
+	completedItems = []
 	oldY = 0
 	contentE = Dom.get()
 	scrollDelta = 0
@@ -34,16 +35,18 @@ exports.renderList = !->
 	draggedIndeting = 0
 
 	class Item
-		constructor: (@dbRef, @element) ->
+		constructor: (@dbRef, @element, @inCompletedList = false) ->
 			@key = parseInt(dbRef.key())
 			@time = dbRef.peek('time')
 			@order = dbRef.peek('order')
 			@depth = dbRef.peek('depth')
+			@cDepth = dbRef.peek('cDepth')
 			@text = dbRef.peek('text')
 			@notes = dbRef.peek('notes')
 			@assigned = []
 			@completed = dbRef.peek('completed')
 			@children = []
+			@childrenKeys = []
 			@treeLength = 1 # always yourself
 			@collapsed = Db.personal.peek 'collapsed', @key
 			@hidden = false
@@ -67,6 +70,7 @@ exports.renderList = !->
 			Obs.observe !->
 				item.order = dbRef.get('order')
 				item.depth = dbRef.get('depth')
+				item.cDepth = dbRef.get('cDepth')
 				item.text = dbRef.get('text')
 				item.notes = dbRef.get('notes')
 				item.assigned = []
@@ -103,7 +107,7 @@ exports.renderList = !->
 						Flex: 1
 						Box: 'left middle'
 						# padding: "0 0 0 #{item.depth*15}" # reactive
-						margin: "2 0 2 #{item.depth*15}" # reactive
+						margin: if !item.inCompletedList then "2 0 2 #{item.depth*15}" else "2 0 2 #{item.cDepth*15}"# reactive
 						backgroundColor: '#fff'
 						borderRadius: '2px'
 
@@ -176,8 +180,9 @@ exports.renderList = !->
 										textAlign: 'center'
 										color: '#fff'
 									Dom.text assigned.length
-						Dom.onTap !->
-							Page.nav item.key
+						if !item.inCompletedList
+							Dom.onTap !->
+								Page.nav item.key
 						if mobile then item.dragToComplete itemDE
 
 					Obs.observe !->
@@ -191,6 +196,8 @@ exports.renderList = !->
 
 								Dom.onTap !->
 									item.collapse(false, true)
+
+					return if item.inCompletedList
 
 					# Overflow menu
 					# Form.vSep()
@@ -216,14 +223,19 @@ exports.renderList = !->
 
 				# Rearrange icon
 				Dom.div !->
-					Dom.style
-						padding: "8px"
-						marginRight: "-8px"
-					Icon.render
-						data: 'reorder'
-						color: '#bbb'
-					dragToReorder item
+					if !item.inCompletedList
+						Dom.style
+							padding: "8px"
+							marginRight: "-8px"
+						Icon.render
+							data: 'reorder'
+							color: '#bbb'
+						dragToReorder item
+					else
+						Dom.style
+							width: '32px'
 
+			return if item.inCompletedList
 			Obs.observe !->
 				if (p = item.showPlus.get()) >= 0 and not item.arrowO.get()
 					Dom.div !->
@@ -280,6 +292,7 @@ exports.renderList = !->
 
 		seekChildren: !->
 			@children = []
+			@childrenKeys = [@key]
 			@treeLength = 1
 			if @order < items.length # if we are the last. We have no children.
 				for j in [@order..items.length-1]
@@ -289,11 +302,13 @@ exports.renderList = !->
 						log "setting completed"
 						i.setpCompleted @completed
 						@children.push(i) # This makes a pointer right? Right?
+						@childrenKeys.push(i.key)
 						++@treeLength
 					else
 						if i.depth <= @depth # Lower or equal depth means not my child
 							break
 						if i.depth > @depth+1 # higher indent means this is a grandchild of me
+							@childrenKeys.push(i.key)
 							log "setting completed gc"
 							i.setpCompleted @completed
 							++@treeLength
@@ -305,6 +320,25 @@ exports.renderList = !->
 					@children[@children.length-1].setShowPlus @key
 
 			@arrowO.set (if @treeLength > 1 then 1 else 0)
+
+		seekCompletedChildren: !->
+			log "doing seekCompletedChildren", @text
+			@children = []
+			@childrenKeys = [@key]
+			@treeLength = 1
+			if @order < completedItems.length # if we are the last. We have no children.
+				for j in [@order..completedItems.length-1]
+					i = completedItems[j]
+					if i.depth is @depth+1 # No Luke, I am your father
+						@children.push(i) # This makes a pointer right? Right?
+						@childrenKeys.push(i.key)
+						++@treeLength
+					else
+						if i.depth <= @depth # Lower or equal depth means not my child
+							break
+						if i.depth > @depth+1 # higher indent means this is a grandchild of me
+							@childrenKeys.push(i.key)
+							++@treeLength
 
 		collapse: (force = false, toggle = false, initial = false) !->
 			return unless @children.length #of no children, never do any of this
@@ -336,12 +370,16 @@ exports.renderList = !->
 				@hidden = false
 
 		setCompleted: (c) !->
-			log "setCompleted", c
+			log "setCompleted", c, @childrenKeys
 			k = @key
-			Server.sync 'complete', k, c, !->
-				Db.shared.set('items', k, 'completed', c)
-			#set to children
-			ch.setpCompleted(c) for ch in @children
+			if !@inCompletedList
+				Server.sync 'complete', k, c, false, !->
+					Db.shared.set('items', k, 'completed', c)
+				ch.setpCompleted(c) for ch in @children # set to children
+			else
+				Server.sync 'complete', k, c, true, @childrenKeys, !->
+					log "predict"
+					# Db.shared.set('items', k, 'completed', c)
 
 		setOffset: (offset) !->
 			@offsetO.set offset
@@ -608,6 +646,7 @@ exports.renderList = !->
 		count = 0
 		empty = Obs.create(true)
 		redrawO = Obs.create(0)
+		cRedrawO = Obs.create(0)
 
 		# List of all items
 		log "-------Initial Draw-----"
@@ -626,7 +665,7 @@ exports.renderList = !->
 
 			Dom.div !->
 				# Make a new item. It is also rendered here (called by its constructor)
-				newItem =  new Item(item, Dom.get())
+				newItem =  new Item(item, Dom.get(), false)
 				items[newItem.order-1] = newItem
 		, (item) ->
 			item.get('order')
@@ -638,8 +677,10 @@ exports.renderList = !->
 			if redrawO.get()
 				log "Redraw observe, do children and collapse"
 				for i in items
+					continue if not i
 					i.seekChildren()
 				for i in items
+					continue if not i
 					i.collapse(false, false, true) # update collapse from Db.personal
 
 		Obs.observe !->
@@ -652,12 +693,33 @@ exports.renderList = !->
 						color: '#bbb'
 					Dom.text tr("No items")
 
+		log "----------Initial Completed Draw---------"
+		Dom.h1 "Completed Items:"
+
+		Db.shared.observeEach 'completed', (comp) !->
+			log "Making new completed:", comp.text
+			Dom.div !->
+				# Make a new item. It is also rendered here (called by its constructor)
+				newComp = new Item(comp, Dom.get(), true)
+				completedItems[newComp.order-1] = newComp
+			cRedrawO.incr()
+		, (comp) ->
+			comp.get('cOrder')
+
+		Obs.observe !->
+			if cRedrawO.get()
+				log "Redraw observe completed, do children"
+				for i in completedItems
+					continue if not i
+					log i
+					i.seekCompletedChildren()
+
 	if mobile then Dom.div !->
 		Dom.style
 			textAlign: 'center'
 			margin: '20px'
 			color: '#999'
-		Dom.text tr("Swipe an item left to check it, and to the right to uncheck it")
+		Dom.text tr("Swipe an item left to complete it, and to the right to undo completion")
 
 	Dom.div !->
 		Dom.style Box: 'middle'
@@ -672,7 +734,7 @@ exports.renderList = !->
 			Dom.text "Hide completed"
 			Dom.onTap !->
 				for item, i in items
-					if item.completed
+					if item.completed and not item.pCompletedO.peek()
 						# from pointers to keys
 						ch = []
 						findChild = (a) !->
@@ -680,7 +742,7 @@ exports.renderList = !->
 							for b in a.children
 								findChild b
 						findChild item
-						Server.sync 'hideCompleted', item.key, ch !->
+						Server.sync 'hideCompleted', item.key, ch, !->
 							SF.hideCompleted(item.key, ch)
 		Dom.div !->
 			Dom.style
@@ -691,6 +753,9 @@ exports.renderList = !->
 				borderRadius: '2px'
 				backgroundColor: '#fff'
 			Dom.text "Show completed"
+			# Dom.onTap !->
+			# 	for i in items
+			# 		i.seekChildren()
 
 Dom.css
 	".sortItem.dragging":

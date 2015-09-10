@@ -64,8 +64,22 @@ exports.remove = remove = (key, children) !->
 			item.incr 'order', -(children.length)
 
 exports.hideCompleted = (key, children) !->
-	#for each item
 	o = Db.shared.get('items', key, 'order')
+	depthOffset = Db.shared.get('items', key, 'depth')
+	# reorder completed list in advanced
+	Db.shared.forEach 'completed', (i) !->
+		# if i.get('cOrder') children.length
+		i.incr 'cOrder', children.length
+	# for each item
+	cO = 0
 	for c in children # mind you, the parent is also in this list
-		Db.shared.set 'completed', c, Db.shared.get('items', c)
-		# Db.shared.remove('items', c)
+		++cO
+		item = Db.shared.get('items', c)
+		item.cDepth = item.depth - depthOffset
+		item.cOrder = cO
+		Db.shared.set 'completed', c, item
+		Db.shared.remove('items', c)
+	# reorder
+	Db.shared.forEach 'items', (i) !->
+		if i.get('order') >= o
+			i.incr 'order', -(children.length)

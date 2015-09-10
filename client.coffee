@@ -49,35 +49,92 @@ renderItem = (itemId) !->
 				Db.shared.merge itemId, values
 			Page.back()
 
+		editTextO = Obs.create(false)
 		Form.box !->
 			Dom.style padding: '8px'
-			# Dom.div !->
-				# Dom.userText Form.smileyToEmoji(item.get("text"))
-			Form.input
-				name: 'text'
-				value: item.func('text')
-				title: tr("Item")
+			Dom.style Box: 'right'
+			if editTextO.get()
+				Form.input
+					name: 'text'
+					value: item.func('text')
+					title: tr("Item")
+					style:
+						margin: '8px'
+						width: '100%'
+			else
+				Dom.div !->
+					Dom.style Flex: 1
+					Dom.div !->
+						Dom.style
+							fontSize: '24px'
+							lineHeight: '26px'
+						Dom.userText Form.smileyToEmoji(""+item.get("text"))
 
+					Dom.div !->
+						Dom.style
+							fontSize: '70%'
+							color: '#aaa'
+						Dom.text tr("Added by %1", Plugin.userName(item.get('by')))
+						Dom.text " • "
+						Time.deltaText item.get('time')
+				Dom.div !->
+					Dom.style
+						padding: '8px 2px'
+					Icon.render
+						data: 'edit'
+						style:
+							position: 'inherit'
+							top: 'inherit'
+							margin: 'inherit'
+				Dom.onTap !->
+					log "edit"
+					editTextO.set true
+
+		Form.sep()
+		Dom.div !->
+			Dom.style
+				Box: 'middle'
+				padding: '8px 8px 0px'
+			Dom.h4 !->
+				Dom.style
+					Flex: 1
+					# margin: '8px 8px 0px'
+				Dom.text tr("Notes")
 			Dom.div !->
 				Dom.style
-					fontSize: '70%'
-					color: '#aaa'
-				Dom.text tr("Added by %1", Plugin.userName(item.get('by')))
-				Dom.text " • "
-				Time.deltaText item.get('time')
-
-		Form.label tr("Notes")
-
+					padding: '8px 2px'
+				Icon.render
+					data: 'edit'
+					style:
+						position: 'inherit'
+						top: 'inherit'
+						margin: 'inherit'
+				Dom.onTap !->
+					log "edit"
+					editNotesO.set true
+		editNotesO = Obs.create(false)
 		Form.box !->
 			Dom.style padding: '8px'
-			Form.text
-				name: 'notes'
-				text: tr 'Notes'
-				autogrow: true
-				value: item.func('notes')
-				inScope: !->
-					Dom.style fontSize: '140%'
-					Dom.prop 'rows', 1
+			Dom.style Box: 'right'
+			if editNotesO.get()
+				Form.text
+					name: 'notes'
+					value: item.func('notes')
+					title: tr("Item")
+					style:
+						width: '100%'
+						padding: '0px 0px 20px 0px'
+			else
+				Dom.div !->
+					Dom.style Flex: 1
+					Dom.div !->
+						Dom.style
+							fontSize: '17px'
+							lineHeight: '19px'
+						Dom.userText Form.smileyToEmoji(if item.get("notes")? then item.get("notes") else "No notes ...")
+				Dom.onTap !->
+					log "edit"
+					editNotesO.set true
 
 		Form.sep()
 
@@ -88,19 +145,19 @@ renderItem = (itemId) !->
 
 		Form.sep()
 
-		Form.input
-			simple: true
-			name: 'subitem'
-			text: tr("+ Add subitem")
-			# onChange: (v) !->
-			# 	item.editingItem.set(!!v?.trim())
-			# onReturn: save
-			inScope: !->
-				Dom.style
-					margin: '12px 8px'
-					border: 'none'
+		# Form.input
+		# 	simple: true
+		# 	name: 'subitem'
+		# 	text: tr("+ Add subitem")
+		# 	# onChange: (v) !->
+		# 	# 	item.editingItem.set(!!v?.trim())
+		# 	# onReturn: save
+		# 	inScope: !->
+		# 		Dom.style
+		# 			margin: '12px 8px'
+		# 			border: 'none'
 
-		Form.sep()
+		# Form.sep()
 
 		emptyO = Obs.create(true)
 		Form.hidden('assigned', assO.func())

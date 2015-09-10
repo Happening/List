@@ -35,52 +35,25 @@ exports.client_remove = (id, children) !->
 	SF.remove(id, children)
 
 exports.client_complete = (id, value, inList, children) !->
-	log "setting completed", id, value, inList
-	if !inList
-		if Db.shared.get('items', id)
-			Db.shared.set 'items', id, 'completed', !!value
-	else # more from completed list to normal
-		log "moving completed", children.length
-		# make room
-		item = Db.shared.get('completed', id)
-		o = item.order
-		potentialDepth = 0
-		itemsLength = 0
-		Db.shared.forEach 'items', (i) !->
-			++itemsLength
-			io = i.get('order')
-			if io == o-1
-				# this will be just above the stuff we're gonna move
-				potentialDepth = i.get('depth')
-			if io >= o
-				i.incr 'order', children.length
-		# move
-		# depthOffset should be cDepth minus depth of item above where I am to go...
-		log "c depth: ", item.depth, potentialDepth
-		depthOffset = item.depth-potentialDepth-1
-		for c in children # mind you, the parent is also in this list
-			item = Db.shared.get('completed', c)
-			item.depth -= depthOffset
-			item.order = Math.min(itemsLength+children.length, item.order)
-			item.cDepth = null
-			item.cOrder = null
-			item.completed = null
-			Db.shared.set('items', c, item)
-			Db.shared.remove('completed', c)
+	# log "setting completed", id, value, inList
+	SF.complete id, value, inList, children
 
 exports.client_reorder = (id, pos, indent, length = 1) !->
 	SF.reorder id, pos, indent, length
 
 exports.client_assign = assign = (id, user) !->
-	log "assigneing", id, user
+	# log "assigneing", id, user
 	if Db.shared.get('items', id, 'assigned', user)
 		Db.shared.remove('items', id, 'assigned', user)
 	else
 		Db.shared.set('items', id, 'assigned', user, true)
 
 exports.client_collapse = (key, value) !->
-	log "collapse", key, value
+	# log "collapse", key, value
 	Db.personal(Plugin.userId()).set 'collapsed', key, value
 
 exports.client_hideCompleted = (key, ch) !->
 	SF.hideCompleted(key, ch)
+
+exports.fixItems = (itemsFixed) !->
+	log "WARNING: Client", Plugin.userId(), "had to fix", itemsFixed, "items!"

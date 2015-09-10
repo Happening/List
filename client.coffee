@@ -51,6 +51,8 @@ renderItem = (itemId) !->
 
 		Form.box !->
 			Dom.style padding: '8px'
+			# Dom.div !->
+				# Dom.userText Form.smileyToEmoji(item.get("text"))
 			Form.input
 				name: 'text'
 				value: item.func('text')

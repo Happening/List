@@ -33,12 +33,14 @@ exports.renderList = !->
 	draggedDelta = 0
 	draggedElementY = 0
 	draggedIndeting = 0
+	showCompletedO = Obs.create(false)
 
 	class Item
 		constructor: (@dbRef, @element, @inCompletedList = false) ->
 			@key = parseInt(dbRef.key())
 			@time = dbRef.peek('time')
 			@order = dbRef.peek('order')
+			@cOrder = dbRef.peek('cOrder')
 			@depth = dbRef.peek('depth')
 			@cDepth = dbRef.peek('cDepth')
 			@text = dbRef.peek('text')
@@ -61,7 +63,6 @@ exports.renderList = !->
 			item = this
 
 			# if we are ad depth 0 and new, show +
-			log Db.local.peek('new'), "|", @key
 			if parseInt(Db.local.peek('new')) is @key # I just added this
 				# if no children...
 				if @depth is 0 and Event.isNew(item.time)
@@ -71,6 +72,7 @@ exports.renderList = !->
 				item.order = dbRef.get('order')
 				item.depth = dbRef.get('depth')
 				item.cDepth = dbRef.get('cDepth')
+				item.cOrder = dbRef.get('cOrder')
 				item.text = dbRef.get('text')
 				item.notes = dbRef.get('notes')
 				item.assigned = []
@@ -147,7 +149,7 @@ exports.renderList = !->
 								# textOverflow: 'ellipsis'
 								# width: '0px' #Firefox hack. But.. errrgh... whut?
 							# Dom.userText item.order + " - " + item.text
-							Dom.userText item.text
+							Dom.userText Form.smileyToEmoji(item.text)
 							if notes = item.notes
 								Dom.div !->
 									Dom.style
@@ -157,7 +159,7 @@ exports.renderList = !->
 										fontWeight: 'normal'
 										overflow: 'hidden'
 										textOverflow: 'ellipsis'
-									Dom.text notes
+									Dom.text Form.smileyToEmoji(notes)
 						Dom.div !->
 							Event.renderBubble [item.key]
 						Dom.div !->
@@ -280,7 +282,6 @@ exports.renderList = !->
 										fontSize: '100%'
 							if item.editingItem.peek() is 'focus' # sneaky using an existing obs to set focus.
 								Obs.onTime 450, !->
-									log "focus"
 									addE.focus()
 
 							Obs.observe !->
@@ -297,9 +298,11 @@ exports.renderList = !->
 			if @order < items.length # if we are the last. We have no children.
 				for j in [@order..items.length-1]
 					i = items[j]
+					if !i?
+						log "-----------ALERT! order is broken---------"
+						repairOrder()
 					if i.depth is @depth+1 # No Luke, I am your father
 						if i.getShowPlus() >= 0 then i.setShowPlus -1 # remove subitem thing, so be sure
-						log "setting completed"
 						i.setpCompleted @completed
 						@children.push(i) # This makes a pointer right? Right?
 						@childrenKeys.push(i.key)
@@ -308,8 +311,10 @@ exports.renderList = !->
 						if i.depth <= @depth # Lower or equal depth means not my child
 							break
 						if i.depth > @depth+1 # higher indent means this is a grandchild of me
+							if @children.length == 0
+								log "-----------ALERT! depth is broken---------"
+								repairOrder()
 							@childrenKeys.push(i.key)
-							log "setting completed gc"
 							i.setpCompleted @completed
 							++@treeLength
 
@@ -322,21 +327,21 @@ exports.renderList = !->
 			@arrowO.set (if @treeLength > 1 then 1 else 0)
 
 		seekCompletedChildren: !->
-			log "doing seekCompletedChildren", @text
 			@children = []
 			@childrenKeys = [@key]
 			@treeLength = 1
-			if @order < completedItems.length # if we are the last. We have no children.
-				for j in [@order..completedItems.length-1]
-					i = completedItems[j]
-					if i.depth is @depth+1 # No Luke, I am your father
+			log completedItems
+			for i in completedItems
+				continue unless i?
+				if i.cOrder > @cOrder
+					if i.cDepth is @cDepth+1 # No Luke, I am your father
 						@children.push(i) # This makes a pointer right? Right?
 						@childrenKeys.push(i.key)
 						++@treeLength
 					else
-						if i.depth <= @depth # Lower or equal depth means not my child
+						if i.cDepth <= @cDepth # Lower or equal cDepth means not my child
 							break
-						if i.depth > @depth+1 # higher indent means this is a grandchild of me
+						if i.cDepth > @cDepth+1 # higher indent means this is a grandchild of me
 							@childrenKeys.push(i.key)
 							++@treeLength
 
@@ -361,7 +366,6 @@ exports.renderList = !->
 				c.hide if collapsed then height else-1 # -1 unhides the item
 
 		hide: (height) !->
-			log "hiding", @text, height
 			if height >= 0
 				@element.style display: 'none'
 				@hidden = true
@@ -370,15 +374,16 @@ exports.renderList = !->
 				@hidden = false
 
 		setCompleted: (c) !->
-			log "setCompleted", c, @childrenKeys
 			k = @key
+			ch =@childrenKeys
 			if !@inCompletedList
 				Server.sync 'complete', k, c, false, !->
 					Db.shared.set('items', k, 'completed', c)
 				ch.setpCompleted(c) for ch in @children # set to children
 			else
-				Server.sync 'complete', k, c, true, @childrenKeys, !->
+				Server.sync 'complete', k, c, true, ch, !->
 					log "predict"
+					SF.complete k, c, true, ch
 					# Db.shared.set('items', k, 'completed', c)
 
 		setOffset: (offset) !->
@@ -589,6 +594,24 @@ exports.renderList = !->
 			item.setPlusOffset t
 		oldY = draggedElementY
 
+	repairOrder = !->
+		log "repairing order and depth"
+		itemsFixed = 0
+		for item, i in items #fix holes
+			if !item?
+				++itemsFixed
+				items.splice(i,1)
+		lastDepth = 0
+		for item, i in items
+			if items.order isnt i
+				++itemsFixed
+				items.order = i # reset order
+			if item.depth > lastDepth+1 # reset depth
+				++itemsFixed
+				item.depth = lastDepth+1
+			lastDepth = item.depth
+		Server.send("fixItems", itemsFixed)
+
 	# End of item class stuff.
 
 	Dom.style
@@ -684,24 +707,39 @@ exports.renderList = !->
 					i.collapse(false, false, true) # update collapse from Db.personal
 
 		Obs.observe !->
-			log 'empty now', empty.get()
 			if empty.get()
-				Ui.item !->
+				Dom.div !->
 					Dom.style
+						marginTop: '16px'
 						padding: '12px 6px'
 						textAlign: 'center'
 						color: '#bbb'
 					Dom.text tr("No items")
 
 		log "----------Initial Completed Draw---------"
-		Dom.h1 "Completed Items:"
+		Obs.observe !->
+			if showCompletedO.get()
+				Dom.div !->
+					Dom.style margin: '8px -8px'
+					Dom.div !->
+						Dom.style
+							width: '100%'
+							borderBottom: "2px solid #bbb"
+				if !cRedrawO.get()
+					Dom.div !->
+						Dom.style
+							padding: '12px 6px'
+							textAlign: 'center'
+							color: '#bbb'
+						Dom.text tr("No completed items")
+
 
 		Db.shared.observeEach 'completed', (comp) !->
-			log "Making new completed:", comp.text
+			return unless showCompletedO.get()
 			Dom.div !->
 				# Make a new item. It is also rendered here (called by its constructor)
 				newComp = new Item(comp, Dom.get(), true)
-				completedItems[newComp.order-1] = newComp
+				completedItems[newComp.cOrder-1] = newComp
 			cRedrawO.incr()
 		, (comp) ->
 			comp.get('cOrder')
@@ -711,7 +749,6 @@ exports.renderList = !->
 				log "Redraw observe completed, do children"
 				for i in completedItems
 					continue if not i
-					log i
 					i.seekCompletedChildren()
 
 	if mobile then Dom.div !->
@@ -721,41 +758,29 @@ exports.renderList = !->
 			color: '#999'
 		Dom.text tr("Swipe an item left to complete it, and to the right to undo completion")
 
-	Dom.div !->
-		Dom.style Box: 'middle'
-		Dom.div !->
-			Dom.style
-				Flex: 1
-				borderRadius: '2px'
-				padding: '8px'
-				margin: '4px'
-				textAlign: 'center'
-				backgroundColor: '#fff'
-			Dom.text "Hide completed"
-			Dom.onTap !->
-				for item, i in items
-					if item.completed and not item.pCompletedO.peek()
-						# from pointers to keys
-						ch = []
-						findChild = (a) !->
-							ch.push a.key
-							for b in a.children
-								findChild b
-						findChild item
-						Server.sync 'hideCompleted', item.key, ch, !->
-							SF.hideCompleted(item.key, ch)
-		Dom.div !->
-			Dom.style
-				Flex: 1
-				padding: '8px'
-				margin: '4px'
-				textAlign: 'center'
-				borderRadius: '2px'
-				backgroundColor: '#fff'
-			Dom.text "Show completed"
-			# Dom.onTap !->
+	Obs.observe !->
+		if !showCompletedO.get()
+			Dom.div !->
+				Dom.style
+					Flex: 1
+					padding: '8px'
+					margin: '4px'
+					textAlign: 'center'
+					borderRadius: '2px'
+					backgroundColor: '#fff'
+				Dom.text "Show completed"
+				Dom.onTap !->
+					showCompletedO.set true
 			# 	for i in items
 			# 		i.seekChildren()
+
+	Obs.onClean !->
+		log "Leaving page. bye bye"
+		log "Hiding completed"
+		for item, i in items
+			if item.completed and not item.pCompletedO.peek()
+				Server.sync 'hideCompleted', item.key, item.childrenKeys, !->
+					SF.hideCompleted(item.key, item.childrenKeys)
 
 Dom.css
 	".sortItem.dragging":

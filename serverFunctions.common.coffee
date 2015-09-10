@@ -1,7 +1,7 @@
 Db = require 'db'
 
 exports.add = (text, order, depth, userId) !->
-	log "Adding new item", text, order, depth
+	# log "Adding new item", text, order, depth
 	# make new item and write
 	o = 1
 	# if parent
@@ -44,7 +44,7 @@ exports.reorder = (id, pos, indentDelta, length = 1) !->
 			else if item.get('order') >= id and item.get('order') < pos
 				item.incr 'order', delta-(length-1)
 				item.incr 'depth', indentDelta
-				log "SF: incr depth by", indentDelta, item.get('order')
+				# log "SF: incr depth by", indentDelta, item.get('order')
 	else
 		Db.shared.forEach 'items', (item) !->
 			if item.get('order') < id and item.get('order') >= pos
@@ -52,7 +52,7 @@ exports.reorder = (id, pos, indentDelta, length = 1) !->
 			else if item.get('order') >= id and item.get('order') < id+length
 				item.incr 'order', delta
 				item.incr 'depth', indentDelta
-				log "SF: incr depth by", indentDelta, item.get('order')
+				# log "SF: incr depth by", indentDelta, item.get('order')
 
 exports.remove = remove = (key, children) !->
 	o = Db.shared.get('items', key, 'order')
@@ -83,3 +83,35 @@ exports.hideCompleted = (key, children) !->
 	Db.shared.forEach 'items', (i) !->
 		if i.get('order') >= o
 			i.incr 'order', -(children.length)
+
+exports.complete = (id, value, inList, children) !->
+	# log "complete", children
+	if !inList
+		if Db.shared.get('items', id)
+			Db.shared.set 'items', id, 'completed', !!value
+	else # more from completed list to normal
+		# make room
+		item = Db.shared.get('completed', id)
+		o = item.order
+		potentialDepth = 0
+		itemsLength = 0
+		Db.shared.forEach 'items', (i) !->
+			++itemsLength
+			io = i.get('order')
+			if io == o-1
+				# this will be just above the stuff we're gonna move
+				potentialDepth = i.get('depth')+1
+			if io >= o
+				i.incr 'order', children.length
+		# move
+		# depthOffset should be cDepth minus depth of item above where I am to go...
+		depthOffset = item.depth-potentialDepth
+		for c in children # mind you, the parent is also in this list
+			item = Db.shared.get('completed', c)
+			item.depth -= depthOffset
+			item.order = Math.min(itemsLength+children.length, item.order)
+			item.cDepth = null
+			item.cOrder = null
+			item.completed = null
+			Db.shared.set('items', c, item)
+			Db.shared.remove('completed', c)

@@ -493,13 +493,18 @@ exports.renderList = !->
 
 				if touches[0].op&4# touch is stopped
 					element.removeClass "dragging"
-					if dragPosition isnt item.order or draggedIndeting != 0
-						log "Done. Send reorder to server", elementO, dragPosition, draggedIndeting, item.treeLength
-						# indentDelta = draggedIndeting - item.depth
-						Server.sync "reorder", elementO, dragPosition, draggedIndeting, item.treeLength, !->
-							SF.reorder elementO, dragPosition, draggedIndeting, item.treeLength
+					log dragPosition, elementO, item.treeLength, draggedIndeting
+					if !(dragPosition > elementO and elementO+(item.treeLength-1) is dragPosition)
+						if (dragPosition isnt item.order) or draggedIndeting != 0
+							log "Done. Send reorder to server. pos:", dragPosition,"|", elementO, "indent:", draggedIndeting, "treeLength:", item.treeLength
+							# indentDelta = draggedIndeting - item.depth
+							Server.sync "reorder", elementO, dragPosition, draggedIndeting, item.treeLength, !->
+								SF.reorder elementO, dragPosition, draggedIndeting, item.treeLength
+						else
+							log "reset Y"
+							element.style _transform: "translateY(0)"
 					else
-						log "reset Y"
+						log "reset Y ha!"
 						element.style _transform: "translateY(0)"
 					# reset lots of things
 					draggedElement = null
@@ -537,10 +542,15 @@ exports.renderList = !->
 			if draggedElementY > liY and oldY <= liY
 				overElement = item.order
 				dragPosition = item.order
+				if item.collapsed
+					dragPosition += item.treeLength
 				if liPlus
-					draggedIndeting = item.depth - draggedElement.depth
+					draggedIndeting = item.depth+1 - draggedElement.depth
 				else
-					draggedIndeting = (if items[i+1] then items[i+1].depth else 0) - draggedElement.depth # set depth to item beneath us
+					if item.collapsed
+						draggedIndeting = (if items[i+item.treeLength] then items[i+item.treeLength].depth else 0) - draggedElement.depth # set depth to item beneath us
+					else
+						draggedIndeting = (if items[i+1] then items[i+1].depth else 0) - draggedElement.depth # set depth to item beneath us
 				break
 			else if draggedElementY < liY and oldY >= liY
 				overElement = item.order
@@ -582,9 +592,10 @@ exports.renderList = !->
 				else
 					t = if trans < 0 then 0 else draggedElementHeight
 			if t == 0
-				dragPosition = if draggedElement.order > item.order then item.order+1 else item.order-1
+				dragPosition = if draggedElement.order > item.order then (if item.collapsed then item.order+item.treeLength else item.order+1) else item.order-1
 			else
-				dragPosition = item.order
+				# dragPosition = item.order
+				dragPosition = if t<0 then (if item.collapsed then item.order+(item.treeLength-1) else item.order) else item.order
 			item.setOffset t
 
 			# do plus stuff

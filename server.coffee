@@ -4,6 +4,36 @@ Event = require 'event'
 SF = require 'serverFunctions'
 
 # Onupgrade, move all items to 'items' and give them an order and depth of 0
+exports.onUpgrade = !->
+	log "upgrading..."
+	# take all items
+	lastOrder = 0
+	Db.shared.forEach (item) !-> # This could include, 'maxId', 'comments', 'tiems' and 'completed'
+		# check if it is an item
+		a = 0
+		if item.key().toString().match ///^\d+$///i #is only numbers
+			# give them a order, depth and assigned
+			newItem = {}
+			newItem.order = item.get('order') || ++lastOrder
+			newItem.depth = item.get('depth')||0
+			a = item.get('assigned')||0
+			newItem.text = item.get('text')||""
+			newItem.by = item.get('by')||""
+			newItem.time = item.get('time')||0
+			newItem.notes = item.get('notes')||null
+			newItem.completed = item.get('completed')||null
+			# move it into 'items'
+			lastOrder = newItem.order
+			Db.shared.set('items', item.key(), newItem)
+			if a then Db.shared.set('items', item.key(), 'assigned', a, true)
+			Db.shared.remove(item.key())
+			log "upped", newItem.text, lastOrder, a
+		else
+			log item.key(), "not an number"
+	# create 'completed'
+	Db.shared.set('completed', {})
+	# done
+	log "upgrading completed!"
 
 exports.client_add = add = (text, order, depth, parent) !->
 	SF.add(text, order, depth, Plugin.userId())

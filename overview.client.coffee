@@ -268,7 +268,7 @@ exports.renderList = !->
 							backgroundColor: '#fff'
 							borderRadius: '2px'
 						Dom.div !->
-							# Dom.style Box: 'middle'
+							Dom.style Box: 'middle' unless Plugin.agent().android
 							save = !->
 								return if !addE.value().trim()
 								# d = if p is parseInt(item.key) then 1 else 0
@@ -666,7 +666,7 @@ exports.renderList = !->
 					# Sigh, and do order stuff...
 				addE.value ""
 				editingItem.set(false)
-				Form.blur()
+				addE.focus() # Refocus on this
 
 			addE = Form.input
 				simple: true

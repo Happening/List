@@ -37,7 +37,7 @@ exports.renderMenu = (key, children, item) !->
 					Dom.onTap !->
 						Server.sync 'complete', key, !value, !->
 							Db.shared.set 'items', key, 'completed', !value
-						Modal.remove()
+						# Modal.remove()
 				Ui.item !->
 					Dom.div !->
 						Dom.style Flex: 1

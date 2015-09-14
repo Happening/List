@@ -28,7 +28,7 @@ exports.renderMenu = (key, children, item) !->
 			Dom.div !->
 				Ui.item !->
 					value = Db.shared.get('items', key, 'completed')
-					Dom.span !->
+					Dom.div !->
 						Dom.style Flex: 1
 						Dom.text tr("Completed")
 					complete = Form.check
@@ -39,7 +39,7 @@ exports.renderMenu = (key, children, item) !->
 							Db.shared.set 'items', key, 'completed', !value
 						Modal.remove()
 				Ui.item !->
-					Dom.span !->
+					Dom.div !->
 						Dom.style Flex: 1
 						Dom.text tr("Add subitem")
 					Dom.span !->
@@ -61,7 +61,7 @@ exports.renderMenu = (key, children, item) !->
 
 				if Plugin.userId() is Db.shared.peek('items', key, 'by') or Plugin.userIsAdmin()
 					Ui.item !->
-						Dom.span !->
+						Dom.div !->
 							Dom.style Flex: 1
 							Dom.text tr("Delete")
 						Icon.render

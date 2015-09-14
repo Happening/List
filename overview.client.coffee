@@ -250,7 +250,7 @@ exports.renderList = !->
 							backgroundColor: '#fff'
 							borderRadius: '2px'
 						Dom.div !->
-							Dom.style Box: 'middle'
+							# Dom.style Box: 'middle'
 							save = !->
 								return if !addE.value().trim()
 								# d = if p is parseInt(item.key) then 1 else 0

@@ -215,7 +215,7 @@ exports.renderList = !->
 										color: '#999'
 
 								Dom.onTap !->
-									item.collapse(false, true)
+									item.collapse(false, true, false, item.element.getOffsetXY().y)
 
 					return if item.inCompletedList
 
@@ -357,7 +357,7 @@ exports.renderList = !->
 							@childrenKeys.push(i.key)
 							++@treeLength
 
-		collapse: (force = false, toggle = false, initial = false) !->
+		collapse: (force = false, toggle = false, initial = false, sourcePos = 0) !->
 			return unless @children.length #of no children, never do any of this
 			#either force it close, or restore it.
 			collapsed = @collapsed
@@ -371,19 +371,54 @@ exports.renderList = !->
 					Server.send "collapse", @key, collapsed
 			@arrowO.set if collapsed then -(@treeLength-1) else 1
 
-			height = 0
+			# height = 0
 			for c in @children
-				height += c.element.height()
-				c.collapse(collapsed)
-				c.hide if collapsed then height else-1 # -1 unhides the item
+				# height += c.element.height()
+				c.collapse(collapsed, false, false, sourcePos)
+				c.hide((if collapsed then sourcePos else -1), sourcePos == 0) # -1 unhides the item
 
-		hide: (height) !->
-			if height >= 0
-				@element.style display: 'none'
-				@hidden = true
-			else
-				@element.style display: 'inherit'
-				@hidden = false
+		hide: (height, immediately = true) !->
+			log "hiding", height, immediately
+			if immediately
+				if height >= 0
+					@element.style
+						display: then 'none'
+					@hidden = true
+				else
+					@element.style
+						display: 'inherit'
+						_transform: "translateY(0px)"
+						marginBottom: "0px"
+						opacity: 1
+						zIndex = 0
+					@hidden = false
+			else # animate!
+				if height >= 0
+					height = @element.getOffsetXY().y-height
+					@element.style
+						opacity: 0
+						zIndex: '-99'
+						position: 'relative'
+						_transform: "translateY(-#{@element.height()}px)"
+					item = this
+					Obs.onTime 180, !->
+						item.element.style display: 'none'
+						# item.element.style marginBottom: "0px"
+					@hidden = true
+				else
+					item = this
+					@element.style
+						display: 'inherit'
+						# marginBottom: "-#{@element.height()}px"
+					Obs.onTime 2, !-> # display skils the animation
+						item.element.style
+							_transform: "translateY(0px)"
+							# marginBottom: "0px"
+							opacity: 1
+					Obs.onTime 200, !->
+						item.element.style
+							zIndex: 0
+					@hidden = false
 
 		setCompleted: (c) !->
 			k = @key
@@ -476,7 +511,7 @@ exports.renderList = !->
 					dragPosition = item.order # Start position
 					oldY = element.getOffsetXY().y + (element.height()/2)
 					element.addClass "dragging"
-					item.collapse(true)
+					item.collapse(true, false, false, element.getOffsetXY().y)
 					draggedIndeting = 0
 
 				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
@@ -510,7 +545,7 @@ exports.renderList = !->
 					draggedElement = null
 					scrolling = 0
 					dragPosition = -1
-					item.collapse(false, false)
+					item.collapse(false, false, false, 1)
 					item.unHidePlus()
 			return false
 		,element
@@ -814,5 +849,6 @@ Dom.css
 		_backfaceVisibility: 'hidden'
 	".sortItem":
 		_backfaceVisibility: 'hidden'
-		transition_: 'transform 0.2s ease-out'
-		WebkitTransition_: 'transform 0.2s ease-out'
+		transition_: 'transform 0.2s ease-out, opacity 0.2s, margin-bottom 0.2s'
+		WebkitTransition_: 'transform 0.2s ease-out, opacity 0.2s, margin-bottom 0.2s'
+		# WebkitTransition_: 'transform 0.2s ease-out, opacity 0.2s'

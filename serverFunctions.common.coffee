@@ -1,12 +1,8 @@
 Db = require 'db'
 
 exports.add = (text, order, depth, userId) !->
-	# log "Adding new item", text, order, depth
 	# make new item and write
 	o = 1
-	# if parent
-	# 	o = Db.shared.get('items', parent, 'order')+1
-	# 	d = Db.shared.get('items', parent, 'depth')+1
 	if order
 		o = order
 		d = depth
@@ -44,7 +40,6 @@ exports.reorder = (id, pos, indentDelta, length = 1) !->
 			else if item.get('order') >= id and item.get('order') < pos
 				item.incr 'order', delta-(length-1)
 				item.incr 'depth', indentDelta
-				# log "SF: incr depth by", indentDelta, item.get('order')
 	else
 		Db.shared.forEach 'items', (item) !->
 			if item.get('order') < id and item.get('order') >= pos
@@ -52,7 +47,6 @@ exports.reorder = (id, pos, indentDelta, length = 1) !->
 			else if item.get('order') >= id and item.get('order') < id+length
 				item.incr 'order', delta
 				item.incr 'depth', indentDelta
-				# log "SF: incr depth by", indentDelta, item.get('order')
 
 exports.remove = remove = (key, children) !->
 	o = Db.shared.get('items', key, 'order')
@@ -85,7 +79,6 @@ exports.hideCompleted = (key, children) !->
 			i.incr 'order', -(children.length)
 
 exports.complete = (id, value, inList, children) !->
-	# log "complete", children
 	if !inList
 		if Db.shared.get('items', id)
 			Db.shared.set 'items', id, 'completed', !!value

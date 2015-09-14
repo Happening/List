@@ -45,7 +45,6 @@ renderItem = (itemId) !->
 		Dom.style margin: '-8px -8px 0', backgroundColor: '#f8f8f8', borderBottom: '2px solid #ccc'
 
 		Form.setPageSubmit (values) !->
-			log values.assigned
 			Server.sync "edit", itemId, values, assO.peek(), !->
 				values.subitem = null
 				Db.shared.merge itemId, values
@@ -89,7 +88,6 @@ renderItem = (itemId) !->
 							top: 'inherit'
 							margin: 'inherit'
 				Dom.onTap !->
-					log "edit"
 					editTextO.set true
 
 		Form.sep()
@@ -112,7 +110,6 @@ renderItem = (itemId) !->
 						top: 'inherit'
 						margin: 'inherit'
 				Dom.onTap !->
-					log "edit"
 					editNotesO.set true
 		editNotesO = Obs.create(false)
 		Form.box !->
@@ -135,7 +132,6 @@ renderItem = (itemId) !->
 							lineHeight: '19px'
 						Dom.userText Form.smileyToEmoji(if item.get("notes")? then item.get("notes") else "No notes ...")
 				Dom.onTap !->
-					log "edit"
 					editNotesO.set true
 
 		Form.sep()
@@ -146,20 +142,6 @@ renderItem = (itemId) !->
 			text: tr("Completed")
 
 		Form.sep()
-
-		# Form.input
-		# 	simple: true
-		# 	name: 'subitem'
-		# 	text: tr("+ Add subitem")
-		# 	# onChange: (v) !->
-		# 	# 	item.editingItem.set(!!v?.trim())
-		# 	# onReturn: save
-		# 	inScope: !->
-		# 		Dom.style
-		# 			margin: '12px 8px'
-		# 			border: 'none'
-
-		# Form.sep()
 
 		emptyO = Obs.create(true)
 		Form.hidden('assigned', assO.func())
@@ -175,7 +157,6 @@ renderItem = (itemId) !->
 					textAlign: 'center'
 					margin: '0px -4px'
 				emptyO.set true
-				# assF.value = []
 				for a of assO.get()
 					emptyO.set false
 					Dom.div !->
@@ -209,4 +190,3 @@ renderItem = (itemId) !->
 	Dom.div !->
 		Dom.style margin: '0 -8px'
 		Social.renderComments(itemId)
-

@@ -65,21 +65,18 @@ exports.client_remove = (id, children) !->
 	SF.remove(id, children)
 
 exports.client_complete = (id, value, inList, children) !->
-	# log "setting completed", id, value, inList
 	SF.complete id, value, inList, children
 
 exports.client_reorder = (id, pos, indent, length = 1) !->
 	SF.reorder id, pos, indent, length
 
 exports.client_assign = assign = (id, user) !->
-	# log "assigneing", id, user
 	if Db.shared.get('items', id, 'assigned', user)
 		Db.shared.remove('items', id, 'assigned', user)
 	else
 		Db.shared.set('items', id, 'assigned', user, true)
 
 exports.client_collapse = (key, value) !->
-	# log "collapse", key, value
 	Db.personal(Plugin.userId()).set 'collapsed', key, value
 
 exports.client_hideCompleted = (key, ch) !->

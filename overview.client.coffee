@@ -84,7 +84,7 @@ exports.renderList = !->
 
 		render: ->
 			item = this # zucht. bijna goed dit.
-			log "(Re-)rendering", @order, @key, @text
+			# log "(Re-)rendering", @order, @key, @text
 
 			Dom.addClass "sortItem"
 			# offset for draggin
@@ -165,7 +165,7 @@ exports.renderList = !->
 							Event.renderBubble [item.key]
 						Dom.div !->
 							Dom.style
-								marginRight: '4px'
+								marginRight: '-4px'
 								# position: 'relative'
 							assigned = item.assigned
 							if !assigned? or assigned.length is 0
@@ -343,7 +343,6 @@ exports.renderList = !->
 			@children = []
 			@childrenKeys = [@key]
 			@treeLength = 1
-			log completedItems
 			for i in completedItems
 				continue unless i?
 				if i.cOrder > @cOrder
@@ -379,7 +378,6 @@ exports.renderList = !->
 				c.hide((if collapsed then sourcePos else -1), sourcePos == 0) # -1 unhides the item
 
 		hide: (height, immediately = true) !->
-			log "hiding", height, immediately
 			if immediately
 				if height >= 0
 					@element.style
@@ -430,7 +428,6 @@ exports.renderList = !->
 				ch.setpCompleted(c) for ch in @children # set to children
 			else
 				Server.sync 'complete', k, c, true, ch, !->
-					log "predict"
 					SF.complete k, c, true, ch
 					# Db.shared.set('items', k, 'completed', c)
 
@@ -518,17 +515,13 @@ exports.renderList = !->
 					draggedIndeting = 0
 
 				# higher sample rate
-				# log draggedY, oldDraggedY, 
 				draggedDelta = draggedY-oldDraggedY
-				# if Math.abs(draggedDelta)>12
 				while Math.abs(draggedDelta) > 5
 					draggedDelta += if draggedDelta > 0 then -5 else 5
 					draggedElementY = element.getOffsetXY().y + draggedY + (element.height()/2) + scrollDelta - startScrollDelta - draggedDelta
-					# log "sample:", draggedElementY
 					onDrag()
 
 				draggedElementY = element.getOffsetXY().y + draggedY + (element.height()/2) + scrollDelta - startScrollDelta
-				# log "normal:", draggedElementY
 				onDrag()
 
 				oldDraggedY = draggedY
@@ -543,18 +536,14 @@ exports.renderList = !->
 
 				if touches[0].op&4# touch is stopped
 					element.removeClass "dragging"
-					log dragPosition, elementO, item.treeLength, draggedIndeting
 					if !(dragPosition > elementO and elementO+(item.treeLength-1) is dragPosition)
 						if (dragPosition isnt item.order) or draggedIndeting != 0
-							log "Done. Send reorder to server. pos:", dragPosition,"|", elementO, "indent:", draggedIndeting, "treeLength:", item.treeLength
 							# indentDelta = draggedIndeting - item.depth
 							Server.sync "reorder", elementO, dragPosition, draggedIndeting, item.treeLength, !->
 								SF.reorder elementO, dragPosition, draggedIndeting, item.treeLength
 						else
-							log "reset Y"
 							element.style _transform: "translateY(0)"
 					else
-						log "reset Y ha!"
 						element.style _transform: "translateY(0)"
 					# reset lots of things
 					draggedElement = null
@@ -610,10 +599,7 @@ exports.renderList = !->
 
 			if liPlus # And do the same on the "+ Add Subselement"
 				liY += liHalf + item.getPlusOffset()
-				# log "check", liY, "(",oldly, (liHalf*2),item.plusOffset.peek(), ") |", draggedElementY
 				if draggedElementY > liY-17.5 and oldY <= liY-17.5 # from above
-					# indentPlus = if item.getShowPlus() == item.key then 1 else 0
-					# log item.getShowPlus(), item.key
 					if item.getShowPlus() == parseInt(item.key)
 						indentPlus = 1
 					indentPlus = 0
@@ -765,8 +751,6 @@ exports.renderList = !->
 				items[newItem.order-1] = newItem
 		, (item) ->
 			item.get('order')
-			# if +item.key()
-			# 	-item.key() + (if item.peek('completed') then 1e9 else 0)
 
 		#run through it again to look for children
 		Obs.observe !->
@@ -844,12 +828,9 @@ exports.renderList = !->
 				Dom.text "Show completed"
 				Dom.onTap !->
 					showCompletedO.set true
-			# 	for i in items
-			# 		i.seekChildren()
 
 	Obs.onClean !->
-		log "Leaving page. bye bye"
-		log "Hiding completed"
+		log "Leaving page. Hiding completed"
 		for item, i in items
 			if item.completed and not item.pCompletedO.peek()
 				Server.sync 'hideCompleted', item.key, item.childrenKeys, !->
@@ -858,7 +839,7 @@ exports.renderList = !->
 Dom.css
 	".sortItem.dragging":
 		position: 'relative'
-		zIndex: 99999
+		zIndex: 999
 		opacity: '0.8'
 		_transition: 'none'
 		_backfaceVisibility: 'hidden'
@@ -866,4 +847,3 @@ Dom.css
 		_backfaceVisibility: 'hidden'
 		transition_: 'transform 0.4s ease-out, opacity 0.4s, margin-bottom 0.4s'
 		WebkitTransition_: 'transform 0.4s ease-out, opacity 0.4s, margin-bottom 0.4s'
-		# WebkitTransition_: 'transform 0.2s ease-out, opacity 0.2s'

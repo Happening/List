@@ -190,11 +190,29 @@ exports.renderList = !->
 					Obs.observe !->
 						ad = item.arrowO.get()
 						if ad isnt 0
+
 							Dom.div !->
-								Dom.style marginLeft: '2px'
-								Icon.render
-									data: if ad is 1 then 'arrowup' else 'arrowdown'
-									color: '#999'
+								Dom.style
+									marginLeft: '2px'
+									marginBottom: '-8px'
+								if ad < 0
+									Dom.div !->
+										Dom.style
+											borderRadius: '11px'
+											height: '22px'
+											width: '22px'
+											paddingTop: '2px'
+											boxSizing: 'border-box'
+											textAlign: 'center'
+											backgroundColor: '#999'
+											color: '#fff'
+											marginBottom: '-5px'
+											marginLeft: '2px'
+										Dom.text Math.abs(ad)
+								Dom.div !->
+									Icon.render
+										data: if ad is 1 then 'arrowup' else 'arrowdown'
+										color: '#999'
 
 								Dom.onTap !->
 									item.collapse(false, true)
@@ -351,7 +369,7 @@ exports.renderList = !->
 				if toggle
 					collapsed = @collapsed = !@collapsed
 					Server.send "collapse", @key, collapsed
-			@arrowO.set if collapsed then -1 else 1
+			@arrowO.set if collapsed then -(@treeLength-1) else 1
 
 			height = 0
 			for c in @children

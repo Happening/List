@@ -108,7 +108,7 @@ exports.complete = (id, value, inList, children) !->
 		depthOffset = item.depth-potentialDepth
 		for c in children # mind you, the parent is also in this list
 			item = Db.shared.get('completed', c)
-			item.depth -= depthOffset
+			item.depth -= Math.max(0, depthOffset)
 			item.order = Math.min(itemsLength+children.length, item.order)
 			item.cDepth = null
 			item.cOrder = null

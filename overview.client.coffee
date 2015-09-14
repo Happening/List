@@ -30,7 +30,8 @@ exports.renderList = !->
 	dragPosition = -1
 	draggedElement = null
 	draggedElementHeight = 0
-	draggedDelta = 0
+	draggedY = 0
+	oldDraggedY = 0
 	draggedElementY = 0
 	draggedIndeting = 0
 	showCompletedO = Obs.create(false)
@@ -401,7 +402,7 @@ exports.renderList = !->
 						position: 'relative'
 						_transform: "translateY(-#{@element.height()}px)"
 					item = this
-					Obs.onTime 180, !->
+					Obs.onTime 350, !->
 						item.element.style display: 'none'
 						# item.element.style marginBottom: "0px"
 					@hidden = true
@@ -489,7 +490,7 @@ exports.renderList = !->
 		scrollDelta = Math.min(contentE.height()-(Page.height()-100), Math.max(0, scrollDelta + scrolling * 10))
 		Page.scroll(scrollDelta, false)
 		if draggedElement?
-			draggedElementY = draggedElement.element.getOffsetXY().y + draggedDelta + (draggedElement.element.height()/2) + scrollDelta - startScrollDelta
+			draggedElementY = draggedElement.element.getOffsetXY().y + draggedY + (draggedElement.element.height()/2) + scrollDelta - startScrollDelta
 			onDrag()
 
 
@@ -499,7 +500,7 @@ exports.renderList = !->
 		Dom.trackTouch (touches...) ->
 			if touches.length == 1
 				# drag element
-				draggedDelta = touches[0].y
+				draggedY = touches[0].y
 				horiontalDelta = touches[0].x
 
 				if touches[0].op&1
@@ -510,13 +511,27 @@ exports.renderList = !->
 					draggedElement = item
 					dragPosition = item.order # Start position
 					oldY = element.getOffsetXY().y + (element.height()/2)
+					oldDraggedY = draggedY
 					element.addClass "dragging"
-					item.collapse(true, false, false, element.getOffsetXY().y)
+					item.collapse(true)
+					# item.collapse(true, false, false, element.getOffsetXY().y)
 					draggedIndeting = 0
 
-				draggedElementY = element.getOffsetXY().y + draggedDelta + (element.height()/2) + scrollDelta - startScrollDelta
+				# higher sample rate
+				# log draggedY, oldDraggedY, 
+				draggedDelta = draggedY-oldDraggedY
+				# if Math.abs(draggedDelta)>12
+				while Math.abs(draggedDelta) > 5
+					draggedDelta += if draggedDelta > 0 then -5 else 5
+					draggedElementY = element.getOffsetXY().y + draggedY + (element.height()/2) + scrollDelta - startScrollDelta - draggedDelta
+					# log "sample:", draggedElementY
+					onDrag()
 
+				draggedElementY = element.getOffsetXY().y + draggedY + (element.height()/2) + scrollDelta - startScrollDelta
+				# log "normal:", draggedElementY
 				onDrag()
+
+				oldDraggedY = draggedY
 
 				# scroll
 				ph = Page.height()-100
@@ -612,7 +627,7 @@ exports.renderList = !->
 					break
 
 		# actually visually position the dragged element
-		draggedElement.element.style _transform: "translateY(#{(draggedDelta + scrollDelta - startScrollDelta) + 'px'})"
+		draggedElement.element.style _transform: "translateY(#{(draggedY + scrollDelta - startScrollDelta) + 'px'})"
 		draggedElement.contentElement.style _transform: "translateX(#{draggedIndeting*15 + 'px'})"
 		# draggedElement.contentElement.style paddingRight: "#{(draggedIndeting*15+4) + 'px'}"
 
@@ -849,6 +864,6 @@ Dom.css
 		_backfaceVisibility: 'hidden'
 	".sortItem":
 		_backfaceVisibility: 'hidden'
-		transition_: 'transform 0.2s ease-out, opacity 0.2s, margin-bottom 0.2s'
-		WebkitTransition_: 'transform 0.2s ease-out, opacity 0.2s, margin-bottom 0.2s'
+		transition_: 'transform 0.4s ease-out, opacity 0.4s, margin-bottom 0.4s'
+		WebkitTransition_: 'transform 0.4s ease-out, opacity 0.4s, margin-bottom 0.4s'
 		# WebkitTransition_: 'transform 0.2s ease-out, opacity 0.2s'

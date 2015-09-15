@@ -155,7 +155,7 @@ renderItem = (itemId) !->
 			Dom.div !->
 				Dom.style
 					textAlign: 'center'
-					margin: '0px -4px'
+					margin: '0px -4px 8px'
 				emptyO.set true
 				for a of assO.get()
 					emptyO.set false

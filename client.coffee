@@ -50,93 +50,54 @@ renderItem = (itemId) !->
 				Db.shared.merge itemId, values
 			Page.back()
 
-		editTextO = Obs.create(false)
+		editTextO = Obs.create(true)
 		Form.box !->
-			Dom.style padding: '8px'
-			Dom.style Box: 'right'
-			if editTextO.get()
-				Form.text
-					name: 'text'
-					value: item.func('text')
-					title: tr("Item")
-					rows: 1
-					style:
-						margin: '0px'
-						padding: '0px'
-						width: '100%'
-			else
-				Dom.div !->
-					Dom.style Flex: 1
-					Dom.div !->
-						Dom.style
-							fontSize: '24px'
-							lineHeight: '26px'
-						Dom.userText Form.smileyToEmoji(""+item.get("text"))
-
-					Dom.div !->
-						Dom.style
-							fontSize: '70%'
-							color: '#aaa'
-						Dom.text tr("Added by %1", Plugin.userName(item.get('by')))
-						Dom.text " • "
-						Time.deltaText item.get('time')
-				Dom.div !->
-					Dom.style
-						padding: '8px 2px'
-					Icon.render
-						data: 'edit'
-						style:
-							position: ''
-							top: ''
-							margin: ''
-				Dom.onTap !->
-					editTextO.set true
+			Dom.style
+				padding: '16px 8px 8px'
+			Form.text
+				name: 'text'
+				value: item.func('text')
+				title: tr("Item")
+				rows: 1
+				style:
+					margin: '0px'
+					padding: '0px 4px 4px'
+			Dom.div !->
+				Dom.style
+					fontSize: '70%'
+					color: '#aaa'
+				Dom.text tr("Added by %1", Plugin.userName(item.get('by')))
+				Dom.text " • "
+				Time.deltaText item.get('time')
+			Dom.div !->
+				Dom.style
+					margin: '8px 4px 0px'
+					fontSize: '100%'
+				for url in item.get("text")?.match(///(https?://|ftp://|www\.)[^\s/$.?][^\s,]*///gi)||[]
+					Dom.userText url + " "
 
 		Form.sep()
 		editNotesO = Obs.create(false)
-		Dom.div !->
+		Dom.h4 !->
 			Dom.style
-				Box: 'middle'
 				padding: '8px 8px 0px'
-			Dom.h4 !->
-				Dom.style
-					Flex: 1
-					# margin: '8px 8px 0px'
-				Dom.text tr("Notes")
-			if !editNotesO.get()
-				Dom.div !->
-					Dom.style
-						padding: '8px 2px'
-					Icon.render
-						data: 'edit'
-						style:
-							position: ''
-							top: ''
-							margin: ''
-			Dom.onTap !->
-				editNotesO.set true
+			Dom.text tr("Notes")
 		Form.box !->
 			Dom.style padding: '8px'
-			Dom.style Box: 'right'
-			if editNotesO.get()
-				Form.text
-					name: 'notes'
-					value: item.func('notes')
-					title: tr("Item")
-					rows: 1
-					style:
-						width: '100%'
-						padding: '0px 0px 20px 0px'
-			else
-				Dom.div !->
-					Dom.style Flex: 1
-					Dom.div !->
-						Dom.style
-							fontSize: '17px'
-							lineHeight: '19px'
-						Dom.userText Form.smileyToEmoji(if item.get("notes")? then item.get("notes") else "No notes ...")
-				Dom.onTap !->
-					editNotesO.set true
+			Form.text
+				name: 'notes'
+				rows: 1
+				value: item.func('notes')
+				title: tr("Item")
+				style:
+					padding: '0px'
+					margin: '0px 4px 4px'
+			Dom.div !->
+				Dom.style
+					margin: '0px 4px'
+					fontSize: '100%'
+				for url in item.get("notes")?.match(///(https?://|ftp://|www\.)[^\s/$.?][^\s,]*///gi)||[]
+					Dom.userText url + " "
 
 		Form.sep()
 

@@ -74,7 +74,7 @@ exports.renderMenu = (key, children, item) !->
 									SF.remove(key, children)
 								Modal.remove()
 
-				Dom.h4 tr("Assign to")
+				Dom.h4 tr("Assigned to")
 				selectMember(key)
 
 # input that handles selection of a member

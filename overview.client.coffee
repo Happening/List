@@ -528,13 +528,13 @@ exports.renderList = !->
 
 				# scroll
 				ph = Page.height()-100
-				if (touches[0].yc-50) + dragScrollTreshold > ph
+				if (touches[0].y+touches[0].yo-50) + dragScrollTreshold > ph
 					scrolling = 1
-				else if (touches[0].yc)-50 - dragScrollTreshold < 0
+				else if (touches[0].y+touches[0].yo-50) < dragScrollTreshold
 					scrolling = -1
 				else scrolling = 0
 
-				if touches[0].op&4# touch is stopped
+				if touches[0].op&4 # touch is stopped
 					element.removeClass "dragging"
 					if !(dragPosition > elementO and elementO+(item.treeLength-1) is dragPosition)
 						if (dragPosition isnt item.order) or draggedIndeting != 0
@@ -615,7 +615,7 @@ exports.renderList = !->
 		# actually visually position the dragged element
 		draggedElement.element.style _transform: "translateY(#{(draggedY + scrollDelta - startScrollDelta) + 'px'})"
 		draggedElement.contentElement.style _transform: "translateX(#{draggedIndeting*15 + 'px'})"
-		# draggedElement.contentElement.style paddingRight: "#{(draggedIndeting*15+4) + 'px'}"
+		# draggedElement.contentElement.style marginRight: "#{(draggedIndeting*15) + 'px'}"
 
 		# move element out of the way
 		if overElement >= 0 and item.key
@@ -845,5 +845,5 @@ Dom.css
 		_backfaceVisibility: 'hidden'
 	".sortItem":
 		_backfaceVisibility: 'hidden'
-		transition_: 'transform 0.4s ease-out, opacity 0.4s, margin-bottom 0.4s'
-		WebkitTransition_: 'transform 0.4s ease-out, opacity 0.4s, margin-bottom 0.4s'
+		transition_: 'transform 0.4s ease-out, opacity 0.4s, marginBottom 0.4s ease-out'
+		WebkitTransition_: 'transform 0.4s ease-out, opacity 0.4s, marginBottom 0.4s ease-out'

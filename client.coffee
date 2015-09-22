@@ -59,8 +59,10 @@ renderItem = (itemId) !->
 					name: 'text'
 					value: item.func('text')
 					title: tr("Item")
+					rows: 1
 					style:
-						margin: '8px'
+						margin: '0px'
+						padding: '0px'
 						width: '100%'
 			else
 				Dom.div !->
@@ -84,13 +86,14 @@ renderItem = (itemId) !->
 					Icon.render
 						data: 'edit'
 						style:
-							position: 'inherit'
-							top: 'inherit'
-							margin: 'inherit'
+							position: ''
+							top: ''
+							margin: ''
 				Dom.onTap !->
 					editTextO.set true
 
 		Form.sep()
+		editNotesO = Obs.create(false)
 		Dom.div !->
 			Dom.style
 				Box: 'middle'
@@ -100,18 +103,18 @@ renderItem = (itemId) !->
 					Flex: 1
 					# margin: '8px 8px 0px'
 				Dom.text tr("Notes")
-			Dom.div !->
-				Dom.style
-					padding: '8px 2px'
-				Icon.render
-					data: 'edit'
-					style:
-						position: 'inherit'
-						top: 'inherit'
-						margin: 'inherit'
-				Dom.onTap !->
-					editNotesO.set true
-		editNotesO = Obs.create(false)
+			if !editNotesO.get()
+				Dom.div !->
+					Dom.style
+						padding: '8px 2px'
+					Icon.render
+						data: 'edit'
+						style:
+							position: ''
+							top: ''
+							margin: ''
+			Dom.onTap !->
+				editNotesO.set true
 		Form.box !->
 			Dom.style padding: '8px'
 			Dom.style Box: 'right'
@@ -120,6 +123,7 @@ renderItem = (itemId) !->
 					name: 'notes'
 					value: item.func('notes')
 					title: tr("Item")
+					rows: 1
 					style:
 						width: '100%'
 						padding: '0px 0px 20px 0px'

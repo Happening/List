@@ -584,7 +584,10 @@ exports.renderList = !->
 				if item.collapsed
 					dragPosition += item.treeLength
 				if liPlus
-					draggedIndeting = item.depth+1 - draggedElement.depth
+					if item.getShowPlus() is item.key
+						draggedIndeting = item.depth+1 - draggedElement.depth
+					else
+						draggedIndeting = item.depth - draggedElement.depth
 				else
 					if item.collapsed
 						draggedIndeting = (if items[i+item.treeLength] then items[i+item.treeLength].depth else 0) - draggedElement.depth # set depth to item beneath us

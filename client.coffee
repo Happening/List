@@ -55,7 +55,10 @@ renderItem = (itemId) !->
 		editTextO = Obs.create(true)
 		Form.box !->
 			Dom.style
+				color: '#333'
 				padding: '16px 8px 8px'
+				backgroundColor: '#e9f1f7'
+				borderBottom: '1px solid #bfcdd8'
 			Form.text
 				name: 'text'
 				value: item.func('text')
@@ -66,26 +69,27 @@ renderItem = (itemId) !->
 					padding: '0px 4px 4px'
 			Dom.div !->
 				Dom.style
-					fontSize: '70%'
-					color: '#aaa'
-				Dom.text tr("Added by %1", Plugin.userName(item.get('by')))
-				Dom.text " • "
-				Time.deltaText item.get('time')
-			Dom.div !->
-				Dom.style
 					margin: '8px 4px 0px'
 					fontSize: '100%'
 				for url in item.get("text")?.match(///(https?://|ftp://|www\.)[^\s/$.?][^\s,]*///gi)||[]
 					Dom.userText url + " "
 
-		Form.sep()
+		Dom.div !->
+			Dom.style
+				margin: '8px'
+				fontSize: '70%'
+				color: '#aaa'
+			Dom.text tr("Added by %1", Plugin.userName(item.get('by')))
+			Dom.text " • "
+			Time.deltaText item.get('time')
+
 		editNotesO = Obs.create(false)
 		Dom.h4 !->
 			Dom.style
 				padding: '8px 8px 0px'
 			Dom.text tr("Notes")
 		Form.box !->
-			Dom.style padding: '8px'
+			Dom.style padding: '8px 8px 16px 8px'
 			Form.text
 				name: 'notes'
 				rows: 1
@@ -118,11 +122,13 @@ renderItem = (itemId) !->
 				width: '100%'
 				boxSizing: 'border-box'
 				padding: '0px 8px'
-			Dom.h4 tr("Assigned to")
+				marginTop: '16px'
+			Dom.h4 tr("Assignee(s)")
 			Dom.div !->
 				Dom.style
 					textAlign: 'center'
 					margin: '0px -4px 8px'
+					padding: '4px 0'
 				emptyO.set true
 				for a of assO.get()
 					emptyO.set false
@@ -142,9 +148,9 @@ renderItem = (itemId) !->
 						Dom.style
 							fontSize: '120%'
 							padding: '8px 0px'
-						Dom.text tr("None assigned")
+						Dom.text tr("No one")
 				Dom.onTap !->
-					Modal.show tr("Assign members"), !->
+					Modal.show tr("Assign member(s)"), !->
 						Dom.style width: '80%', maxWidth: '400px'
 						Dom.div !->
 							Dom.style

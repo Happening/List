@@ -84,7 +84,7 @@ exports.renderList = !->
 				item.render()
 
 		render: ->
-			item = this # zucht. bijna goed dit.
+			item = this
 			# log "(Re-)rendering", @order, @key, @text
 
 			Dom.addClass "sortItem"
@@ -168,20 +168,22 @@ exports.renderList = !->
 						Dom.div !->
 							Dom.style
 								marginRight: '-4px'
-								# position: 'relative'
+								position: 'relative'
 							assigned = item.assigned
 							if !assigned? or assigned.length is 0
 								# Do nothing
 							else if assigned.length is 1
 								Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
 							else if assigned.length > 1
-								Ui.avatar '#666', size: 30, style: margin: '0 0 0 8px'
+								Ui.avatar '#bbb', size: 30, style: margin: '0 0 0 8px'
 								Dom.div !->
 									Dom.style
 										position: 'absolute'
-										top: '10px'
+										top: '6px'
+										left: '8px'
+										fontSize: '75%'
+										fontWeight: 'bold'
 										width: '32px'
-										margin: '8px 0px 0px 8px'
 										textAlign: 'center'
 										color: '#fff'
 									Dom.text assigned.length
@@ -196,26 +198,22 @@ exports.renderList = !->
 
 							Dom.div !->
 								Dom.style
-									marginLeft: '2px'
-									marginBottom: '-8px'
+									Box: 'middle'
+									marginLeft: '6px'
+									borderRadius: '3px'
 								if ad < 0
+									Dom.style border: '1px solid #bbb'
 									Dom.div !->
 										Dom.style
-											borderRadius: '11px'
-											height: '22px'
-											width: '22px'
-											paddingTop: '2px'
-											boxSizing: 'border-box'
-											textAlign: 'center'
-											backgroundColor: '#999'
-											color: '#fff'
-											marginBottom: '-5px'
-											marginLeft: '2px'
+											paddingLeft: '6px'
+											fontSize: '75%'
+											fontWeight: 'bold'
+											color: '#bbb'
 										Dom.text Math.abs(ad)
 								Dom.div !->
 									Icon.render
 										data: if ad is 1 then 'arrowup' else 'arrowdown'
-										color: '#999'
+										color: '#bbb'
 
 								Dom.onTap !->
 									item.collapse(false, true, false, item.element.getOffsetXY().y)
@@ -228,7 +226,8 @@ exports.renderList = !->
 					Dom.div !->
 						Dom.style
 							padding: '8px'
-							margin: '8px 0px'
+							borderRadius: '16px'
+							margin: '8px 8px 8px 0'
 						Icon.render
 							data: 'more'
 							color: '#bbb'
@@ -386,7 +385,7 @@ exports.renderList = !->
 			if immediately
 				if height >= 0
 					@element.style
-						display: then 'none'
+						display: 'none'
 					@hidden = true
 				else
 					@element.style
@@ -426,7 +425,7 @@ exports.renderList = !->
 
 		setCompleted: (c) !->
 			k = @key
-			ch =@childrenKeys
+			ch = @childrenKeys
 			if !@inCompletedList
 				Server.sync 'complete', k, c, false, !->
 					Db.shared.set('items', k, 'completed', c)
@@ -697,7 +696,7 @@ exports.renderList = !->
 				# paddingBottom: '0px'
 				backgroundColor: '#fff'
 				borderRadius: '2px'
-				marginRight: '32px'
+				margin: '0 32px 1px 0'
 			save = !->
 				return if !addE.value().trim()
 				Db.local.set('new', (Db.shared.peek('maxId')|0)+1)
@@ -813,6 +812,21 @@ exports.renderList = !->
 					continue if not i
 					i.seekCompletedChildren()
 
+	Obs.observe !->
+		if !showCompletedO.get()
+			Dom.div !->
+				Dom.style
+					Flex: 1
+					padding: '8px'
+					margin: '4px 32px 4px 0'
+					textAlign: 'center'
+					borderRadius: '2px'
+					border: '1px solid #ccc'
+					color: Plugin.colors().highlight
+				Dom.text "Show completed"
+				Dom.onTap !->
+					showCompletedO.set true
+
 	if mobile then Dom.div !->
 		Dom.style
 			textAlign: 'center'
@@ -820,19 +834,6 @@ exports.renderList = !->
 			color: '#999'
 		Dom.text tr("Swipe an item left to complete it, and to the right to undo completion")
 
-	Obs.observe !->
-		if !showCompletedO.get()
-			Dom.div !->
-				Dom.style
-					Flex: 1
-					padding: '8px'
-					margin: '4px'
-					textAlign: 'center'
-					borderRadius: '2px'
-					backgroundColor: '#fff'
-				Dom.text "Show completed"
-				Dom.onTap !->
-					showCompletedO.set true
 
 	Obs.onClean !->
 		log "Leaving page. Hiding completed"

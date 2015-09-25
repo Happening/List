@@ -19,7 +19,6 @@ exports.renderMenu = (key, children, item) !->
 				maxHeight: '70%'
 				backgroundColor: '#eee'
 				margin: '-12px'
-				padding: '8px'
 			Dom.overflow()
 			Dom.div !->
 				Ui.item !->
@@ -70,7 +69,9 @@ exports.renderMenu = (key, children, item) !->
 									SF.remove(key, children)
 								Modal.remove()
 
-				Dom.h4 tr("Assigned to")
+				Dom.h4 !->
+					Dom.style margin: '12px 8px 4px 8px'
+					Dom.text tr("Assignee(s)")
 				selectMember(key)
 
 # input that handles selection of a member

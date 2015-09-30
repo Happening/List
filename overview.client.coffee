@@ -55,9 +55,9 @@ exports.renderList = !->
 			@hidden = false
 			@arrowO = Obs.create(0)
 			@offsetO = Obs.create(0)
-			@showPlus = Obs.create(-1)
-			@plusOffset = Obs.create(0)
-			@editingItem = Obs.create(false)
+			@showPlusO = Obs.create(-1)
+			@plusOffsetO = Obs.create(0)
+			@editingItemO = Obs.create(false)
 			@pCompletedO = Obs.create(false)
 			@plusElement = null
 			@contentElement = @element
@@ -67,7 +67,7 @@ exports.renderList = !->
 			if parseInt(Db.local.peek('new')) is @key # I just added this
 				# if no children...
 				if @depth is 0 and Event.isNew(item.time)
-					@showPlus.set @key
+					@showPlusO.set @key
 
 			Obs.observe !->
 				item.order = dbRef.get('order')
@@ -89,7 +89,7 @@ exports.renderList = !->
 			Dom.addClass "sortItem"
 			# offset for draggin
 			# item.offsetO.set 0 # reset own offset when rendering
-			item.plusOffset.set 0 # reset plus offset when rendering
+			item.plusOffsetO.set 0 # reset plus offset when rendering
 			Dom.style
 				_transform: "translateY(#{'0px'})"
 			Obs.observe !->
@@ -251,11 +251,11 @@ exports.renderList = !->
 
 			return if item.inCompletedList
 			Obs.observe !->
-				if (p = item.showPlus.get()) >= 0 and not item.arrowO.get()
+				if (p = item.showPlusO.get()) >= 0 and not item.arrowO.get()
 					Dom.div !->
 						item.plusElement = Dom.get()
 						# Obs.observe !->
-						offset = item.plusOffset.get()
+						offset = item.plusOffsetO.get()
 						d = if p is parseInt(item.key) then 1 else 0
 						# desktopOffset = if mobile then 38 else 82
 						desktopOffset = 0 # if mobile then 32 else 32
@@ -276,7 +276,7 @@ exports.renderList = !->
 								Server.sync 'add', addE.value().trim(), item.order+1, item.depth + d, p, !->
 									SF.add(addE.value().trim(), item.order+1, item.depth + d, Plugin.userId())
 								addE.value ""
-								item.editingItem.set(false)
+								item.editingItemO.set(false)
 								Form.blur()
 
 							addE = Form.input
@@ -285,21 +285,21 @@ exports.renderList = !->
 								text: tr("New subitem ...")
 								onChange: (v) !->
 										# item.editingItem.set (false)
-									if v?.trim().length or item.editingItem.peek() isnt 'focus'
-										item.editingItem.set(!!v?.trim())
+									if v?.trim().length or item.editingItemO.peek() isnt 'focus'
+										item.editingItemO.set(!!v?.trim())
 								onReturn: save
 								inScope: !->
 									Dom.style
 										Flex: 1
 										border: 'none'
 										fontSize: '100%'
-							if item.editingItem.peek() is 'focus' # sneaky using an existing obs to set focus.
+							if item.editingItemO.peek() is 'focus' # sneaky using an existing obs to set focus.
 								Obs.onTime 450, !->
 									addE.focus()
 
 							Obs.observe !->
 								Ui.button !->
-									Dom.style visibility: (if item.editingItem.get() then 'visible' else 'hidden')
+									Dom.style visibility: (if item.editingItemO.get() then 'visible' else 'hidden')
 									Dom.text tr("Add")
 								, save
 						# Form.sep()
@@ -436,13 +436,13 @@ exports.renderList = !->
 		getOffset: ->
 			@offsetO.peek()
 		setShowPlus: (show) !->
-			@showPlus.set show
+			@showPlusO.set show
 		getShowPlus: ->
-			@showPlus.peek()
+			@showPlusO.peek()
 		setPlusOffset: (offset) !->
-			@plusOffset.set offset
+			@plusOffsetO.set offset
 		getPlusOffset: ->
-			@plusOffset.peek()
+			@plusOffsetO.peek()
 		hidePlus: !->
 			@plusElement?.style display: 'none'
 		unHidePlus: !-> # show is taken
@@ -640,11 +640,11 @@ exports.renderList = !->
 			# do plus stuff
 			if item.getShowPlus() >= 0
 				if t<0
-					item.plusOffset.set -t
+					item.setPlusOffset -t
 				else if t == 0 and direction
-					item.plusOffset.set draggedElementHeight
+					item.setPlusOffset draggedElementHeight
 				else
-					item.plusOffset.set 0
+					item.setPlusOffset 0
 
 		# move plus element out of the way
 		if plusElement >= 0 and item.key
@@ -680,7 +680,7 @@ exports.renderList = !->
 		overflowX: 'hidden'
 		_userSelect: 'none'
 
-	editingItem = Obs.create(false)
+	editingItemO = Obs.create(false)
 	Dom.div !->
 		Dom.style
 			margin: '-8px -8px 0px'
@@ -694,6 +694,7 @@ exports.renderList = !->
 		Ui.item !->
 			Dom.style
 				paddingLeft: '10px'
+				# paddingBottom: '0px'
 				backgroundColor: '#fff'
 				borderRadius: '2px'
 				marginRight: '32px'
@@ -704,15 +705,17 @@ exports.renderList = !->
 					SF.add(addE.value().trim(), 1, 0, Plugin.userId())
 					# Sigh, and do order stuff...
 				addE.value ""
-				editingItem.set(false)
+				addE.style {height: '26px'} # reset height
+				editingItemO.set(false)
 				addE.focus() # Refocus on this
 
-			addE = Form.input
+			addE = Form.text
 				simple: true
+				rows: 1
 				name: 'item'
 				text: tr("New item ...")
 				onChange: (v) !->
-					editingItem.set(!!v?.trim())
+					editingItemO.set(!!v?.trim())
 				onReturn: save
 				inScope: !->
 					Dom.style
@@ -720,10 +723,9 @@ exports.renderList = !->
 						display: 'block'
 						border: 'none'
 						fontSize: '21px'
-
 			Obs.observe !->
 				Ui.button !->
-					Dom.style visibility: (if editingItem.get() then 'visible' else 'hidden')
+					Dom.style visibility: (if editingItemO.get() then 'visible' else 'hidden')
 					Dom.text tr("Add")
 				, save
 

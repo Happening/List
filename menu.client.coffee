@@ -1,15 +1,11 @@
 Db = require 'db'
 Dom = require 'dom'
-Event = require 'event'
 Form = require 'form'
 Icon = require 'icon'
 Modal = require 'modal'
 Obs = require 'obs'
-Page = require 'page'
 Plugin = require 'plugin'
 Server = require 'server'
-Social = require 'social'
-Time = require 'time'
 Ui = require 'ui'
 {tr} = require 'i18n'
 SF = require 'serverFunctions'
@@ -50,7 +46,7 @@ exports.renderMenu = (key, children, item) !->
 							size: 22
 							style: {marginRight: '2px'}
 					Dom.onTap !->
-						item.editingItem.set('focus')
+						item.editingItemO.set('focus')
 						item.setShowPlus(key)
 						# Modal.prompt tr("Add subitem")
 						# , (value) !->

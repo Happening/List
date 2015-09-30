@@ -24,7 +24,9 @@ exports.render = !->
 		Overview.renderList()
 
 renderItem = (itemId) !->
-	item = Db.shared.ref 'items', itemId
+	completed = Page.state.get("?completed")||false
+	log ">>", completed
+	item = if completed then Db.shared.ref 'completed', itemId else Db.shared.ref 'items', itemId
 	children = Page.state.get("?children")
 	Page.setTitle Form.smileyToEmoji(""+item.get("text"))
 	Event.showStar item.get('text')
@@ -33,8 +35,8 @@ renderItem = (itemId) !->
 			icon: 'trash'
 			action: !->
 				Modal.confirm null, (if children.length>1 then tr("Are you sure you want to delete this item and its %1 subitem|s?", children.length-1) else tr("Are you sure you want to delete this item?")), !->
-					Server.sync 'remove', itemId, children, !->
-						SF.remove(itemId, children)
+					Server.sync 'remove', itemId, children, completed, !->
+						SF.remove(itemId, children, completed)
 					Page.back()
 
 	assO = Obs.create(item.peek("assigned"))
@@ -45,9 +47,9 @@ renderItem = (itemId) !->
 		Dom.style margin: '-8px -8px 0', backgroundColor: '#f8f8f8', borderBottom: '2px solid #ccc'
 
 		Form.setPageSubmit (values) !->
-			Server.sync "edit", itemId, values, assO.peek(), !->
+			Server.sync "edit", itemId, values, assO.peek(), completed, children, !->
 				values.subitem = null
-				Db.shared.merge itemId, values
+				SF.edit itemId, values, assO.peek(), completed, children
 			Page.back()
 
 		editTextO = Obs.create(true)

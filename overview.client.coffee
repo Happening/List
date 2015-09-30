@@ -35,6 +35,7 @@ exports.renderList = !->
 	draggedElementY = 0
 	draggedIndeting = 0
 	showCompletedO = Obs.create(false)
+	focusO = Obs.create(0) # used to focus on 'add (sub) item' fields
 
 	class Item
 		constructor: (@dbRef, @element, @inCompletedList = false) ->
@@ -63,11 +64,11 @@ exports.renderList = !->
 			@contentElement = @element
 			item = this
 
-			# if we are ad depth 0 and new, show +
-			if parseInt(Db.local.peek('new')) is @key # I just added this
-				# if no children...
-				if @depth is 0 and Event.isNew(item.time)
-					@showPlusO.set @key
+			# if we are at depth 0 and new, show +
+			# if parseInt(Db.local.peek('new')) is @key # I just added this
+			# 	# if no children...
+			# 	if @depth is 0 and Event.isNew(item.time)
+			# 		@showPlusO.set @key
 
 			Obs.observe !->
 				item.order = dbRef.get('order')
@@ -87,7 +88,7 @@ exports.renderList = !->
 			# log "(Re-)rendering", @order, @key, @text
 
 			Dom.addClass "sortItem"
-			# offset for draggin
+			# offset for dragging
 			# item.offsetO.set 0 # reset own offset when rendering
 			item.plusOffsetO.set 0 # reset plus offset when rendering
 			Dom.style
@@ -126,10 +127,11 @@ exports.renderList = !->
 							fontSize: '16px' #'21px'
 							wordBreak: 'break-word'
 
-						#checkbox for desktop
+						#check box for desktop
 						if !mobile
 							Dom.div !->
 								Dom.style Box: 'center middle'
+								Dom.style _transform: "translate3d(0,0,0)" # fix for delayed view on webkit
 								# Form.vSep()
 								item.completed
 									# temp fix for problems arising from marking completed in edit item screen
@@ -148,9 +150,9 @@ exports.renderList = !->
 								# overflow: 'hidden'
 								# whiteSpace: 'nowrap'
 								# textOverflow: 'ellipsis'
-								# width: '0px' #Firefox hack. But.. errrgh... whut?
+								# width: '0px'
 							# Dom.userText item.order + " - " + item.text
-							Dom.userText Form.smileyToEmoji(item.text)
+							Dom.userText item.text
 							if notes = item.notes
 								Dom.div !->
 									Dom.style
@@ -160,7 +162,7 @@ exports.renderList = !->
 										fontWeight: 'normal'
 										overflow: 'hidden'
 										textOverflow: 'ellipsis'
-									Dom.text Form.smileyToEmoji(notes)
+									Dom.text notes
 						Dom.div !->
 							Event.renderBubble [item.key]
 						Dom.div !->
@@ -183,9 +185,9 @@ exports.renderList = !->
 										textAlign: 'center'
 										color: '#fff'
 									Dom.text assigned.length
-						if !item.inCompletedList
-							Dom.onTap !->
-								Page.nav {0:item.key, "?children": item.childrenKeys}
+						# if !item.inCompletedList
+						Dom.onTap !->
+							Page.nav {0:item.key, "?children": item.childrenKeys, "?completed": item.completed}
 						if mobile then item.dragToComplete itemDE
 
 					Obs.observe !->
@@ -257,19 +259,19 @@ exports.renderList = !->
 						# Obs.observe !->
 						offset = item.plusOffsetO.get()
 						d = if p is parseInt(item.key) then 1 else 0
-						# desktopOffset = if mobile then 38 else 82
 						desktopOffset = 0 # if mobile then 32 else 32
 						Dom.addClass "sortItem"
 						Dom.style
 							_transform: "translateY(#{offset + 'px'})"
 							padding: '4px 4px 4px 8px'
 							# height: '50px'
-							margin: "2 32 2 #{(item.depth+d)*15 + desktopOffset}" # reactive. Last 15 is so it looks less 'indented' ;)
+							margin: "2 32 2 #{(item.depth+d)*15 + desktopOffset}" # reactive.
 							display: 'block'
 							backgroundColor: '#fff'
 							borderRadius: '2px'
+							minHeight: '38px'
+							Box: 'middle'
 						Dom.div !->
-							Dom.style Box: 'middle' unless Plugin.agent().android
 							save = !->
 								return if !addE.value().trim()
 								# d = if p is parseInt(item.key) then 1 else 0
@@ -278,28 +280,35 @@ exports.renderList = !->
 								addE.value ""
 								item.editingItemO.set(false)
 								Form.blur()
+								focusO.set(item.order+1) # focus on new 'add subitem'
 
 							addE = Form.input
 								simple: true
 								name: 'item' + item.key
 								text: tr("New subitem ...")
 								onChange: (v) !->
-										# item.editingItem.set (false)
 									if v?.trim().length or item.editingItemO.peek() isnt 'focus'
 										item.editingItemO.set(!!v?.trim())
 								onReturn: save
 								inScope: !->
 									Dom.style
-										Flex: 1
 										border: 'none'
 										fontSize: '100%'
-							if item.editingItemO.peek() is 'focus' # sneaky using an existing obs to set focus.
-								Obs.onTime 450, !->
-									addE.focus()
+										padding: '0px 52px 0px 0px'
+										minHeight: '34px'
+										width:'100%'
+							Obs.observe !->
+								if focusO.get() is item.order
+									Obs.onTime 450, !->
+										focusO.set(0) #reset. causes weird stuff while dragging
+										addE.focus()
 
 							Obs.observe !->
 								Ui.button !->
-									Dom.style visibility: (if item.editingItemO.get() then 'visible' else 'hidden')
+									Dom.style
+										visibility: (if item.editingItemO.get() is true then 'visible' else 'hidden')
+										position: 'absolute' # if you are wondering why we use absolute and no flex: Andoird 4.3 that's why.
+										right: '4px'
 									Dom.text tr("Add")
 								, save
 						# Form.sep()
@@ -312,11 +321,9 @@ exports.renderList = !->
 				for j in [@order..items.length-1]
 					i = items[j]
 					if !i?
-						log "-----------ALERT! order is broken---------"
 						repairOrder()
 					if i.depth is @depth+1 # No Luke, I am your father
 						if i.getShowPlus() >= 0 then i.setShowPlus -1 # remove subitem thing, so be sure
-						i.setpCompleted @completed
 						@children.push(i) # This makes a pointer right? Right?
 						@childrenKeys.push(i.key)
 						++@treeLength
@@ -325,10 +332,8 @@ exports.renderList = !->
 							break
 						if i.depth > @depth+1 # higher indent means this is a grandchild of me
 							if @children.length == 0
-								log "-----------ALERT! depth is broken---------"
 								repairOrder()
 							@childrenKeys.push(i.key)
-							i.setpCompleted @completed
 							++@treeLength
 
 				# if I have children, set 'addSubItem' to the parent
@@ -409,7 +414,7 @@ exports.renderList = !->
 					@element.style
 						display: 'inherit'
 						# marginBottom: "-#{@element.height()}px"
-					Obs.onTime 2, !-> # display skils the animation
+					Obs.onTime 2, !-> # display kills the animation
 						item.element.style
 							_transform: "translateY(0px)"
 							# marginBottom: "0px"
@@ -425,12 +430,11 @@ exports.renderList = !->
 			if !@inCompletedList
 				Server.sync 'complete', k, c, false, !->
 					Db.shared.set('items', k, 'completed', c)
-				ch.setpCompleted(c) for ch in @children # set to children
+				ch.setCompleted(c) for ch in @children # set to children
 			else
 				Server.sync 'complete', k, c, true, ch, !->
 					SF.complete k, c, true, ch
 					# Db.shared.set('items', k, 'completed', c)
-
 		setOffset: (offset) !->
 			@offsetO.set offset
 		getOffset: ->
@@ -447,8 +451,6 @@ exports.renderList = !->
 			@plusElement?.style display: 'none'
 		unHidePlus: !-> # show is taken
 			@plusElement?.style display: 'inherit'
-		setpCompleted: (c) !->
-			@pCompletedO.set c
 
 		dragToComplete: (element) !->
 			key = @key
@@ -472,10 +474,8 @@ exports.renderList = !->
 					element.style _transform: "translateX(#{Math.min(120, Math.max(-120, touches[0].x)) + 'px'})"
 					if touches[0].op&4 # touch is stopped
 						dragDirection = 0
-						if touches[0].x > swipeToCompleteTreshold # treshhold
-							item.setCompleted true
-						if touches[0].x < -swipeToCompleteTreshold # treshhold
-							item.setCompleted false
+						if Math.abs(touches[0].x) > swipeToCompleteTreshold # threshold
+							item.setCompleted !item.completed
 						element.removeClass "dragging"
 						element.style _transform: "translateX(0px)"
 				return dragDirection < 1 # do default
@@ -600,7 +600,7 @@ exports.renderList = !->
 				draggedIndeting = item.depth - draggedElement.depth # set depth to item beneath us
 				break
 
-			if liPlus # And do the same on the "+ Add Subselement"
+			if liPlus # And do the same on the "+ Add Subelement"
 				liY += liHalf + item.getPlusOffset()
 				if draggedElementY > liY-17.5 and oldY <= liY-17.5 # from above
 					if item.getShowPlus() == parseInt(item.key)

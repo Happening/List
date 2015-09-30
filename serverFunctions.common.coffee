@@ -1,6 +1,6 @@
 Db = require 'db'
 
-exports.add = (text, order, depth, userId) !->
+exports.add = (text, order, depth, userId) ->
 	# make new item and write
 	o = 1
 	if order
@@ -48,14 +48,33 @@ exports.reorder = (id, pos, indentDelta, length = 1) !->
 				item.incr 'order', delta
 				item.incr 'depth', indentDelta
 
-exports.remove = remove = (key, children) !->
-	o = Db.shared.get('items', key, 'order')
-	for c in children # mind you, the parent is also in this list
-		Db.shared.remove('items', c)
-	# reorder stuff
-	Db.shared.forEach 'items', (item) !->
-		if item.get('order') >o
-			item.incr 'order', -(children.length)
+exports.remove = remove = (key, children, completed = false) !->
+	if !completed
+		o = Db.shared.get('items', key, 'order')
+		for c in children # mind you, the parent is also in this list
+			Db.shared.remove('items', c)
+
+		# reorder stuff
+		Db.shared.forEach 'items', (item) !->
+			if item.get('order') >o
+				item.incr 'order', -(children.length)
+	else
+		for c in children # mind you, the parent is also in this list
+			Db.shared.remove('completed', c)
+
+exports.edit = (itemId, values, assigned, completed, children) !->
+	toggleCompleted = false
+	if completed
+		if values.completed isnt Db.shared.get('completed', itemId, 'completed') then toggleCompleted = true
+			# also, set completed.
+		Db.shared.merge('completed', itemId, values)
+		Db.shared.set('completed', itemId, 'assigned', assigned)
+	else
+		if values.completed isnt Db.shared.get('items', itemId, 'completed') then toggleCompleted = true
+		Db.shared.merge('items', itemId, values)
+		Db.shared.set('items', itemId, 'assigned', assigned)
+	if toggleCompleted
+		complete itemId, !completed, completed, children
 
 exports.hideCompleted = (key, children) !->
 	o = Db.shared.get('items', key, 'order')
@@ -69,16 +88,18 @@ exports.hideCompleted = (key, children) !->
 	for c in children # mind you, the parent is also in this list
 		++cO
 		item = Db.shared.get('items', c)
-		item.cDepth = item.depth - depthOffset
-		item.cOrder = cO
-		Db.shared.set 'completed', c, item
-		Db.shared.remove('items', c)
+		log item
+		if item? # One does wonder...
+			item.cDepth = item.depth - depthOffset
+			item.cOrder = cO
+			Db.shared.set 'completed', c, item
+			Db.shared.remove('items', c)
 	# reorder
 	Db.shared.forEach 'items', (i) !->
 		if i.get('order') >= o
 			i.incr 'order', -(children.length)
 
-exports.complete = (id, value, inList, children) !->
+exports.complete = complete = (id, value, inList, children) !->
 	if !inList
 		if Db.shared.get('items', id)
 			Db.shared.set 'items', id, 'completed', !!value

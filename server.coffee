@@ -49,20 +49,19 @@ exports.client_add = add = (text, order, depth, parent) !->
 			text: "#{name} added an item: #{text}"
 			sender: Plugin.userId()
 
-exports.client_edit = (itemId, values, assigned) !->
-	if values.subitem # add this item
-		item = Db.shared.get('items', itemId)
-		add values.subitem, item.order+1, item.depth+1, itemId
-		values.subitem = null # rem
-	Db.shared.merge('items', itemId, values)
-	Db.shared.set('items', itemId, 'assigned', assigned)
+exports.client_edit = (itemId, values, assigned, completed, children) !->
+	SF.edit itemId, values, assigned, completed, children
 
 exports.client_setText = (id, text) !->
 	Db.shared.set('items', id, 'text', text)
 
-exports.client_remove = (id, children) !->
-	return if Plugin.userId() isnt Db.shared.get('items', id, 'by') and !Plugin.userIsAdmin()
-	SF.remove(id, children)
+exports.client_remove = (id, children, completed) !->
+	# first check authentication
+	if !completed
+		return if Plugin.userId() isnt Db.shared.get('items', id, 'by') and !Plugin.userIsAdmin()
+	else
+		return if Plugin.userId() isnt Db.shared.get('completed', id, 'by') and !Plugin.userIsAdmin()
+	SF.remove(id, children, completed)
 
 exports.client_complete = (id, value, inList, children) !->
 	SF.complete id, value, inList, children

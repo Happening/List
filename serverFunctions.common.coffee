@@ -103,6 +103,10 @@ exports.complete = complete = (id, value, inList, children) !->
 	if !inList
 		if Db.shared.get('items', id)
 			Db.shared.set 'items', id, 'completed', !!value
+		# set children value
+		for c in children
+			if Db.shared.get('items', c)
+				Db.shared.set('items', c, 'completed', !!value)
 	else # more from completed list to normal
 		# make room
 		item = Db.shared.get('completed', id)

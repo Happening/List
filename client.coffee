@@ -25,7 +25,6 @@ exports.render = !->
 
 renderItem = (itemId) !->
 	completed = Page.state.get("?completed")||false
-	log ">>", completed
 	item = if completed then Db.shared.ref 'completed', itemId else Db.shared.ref 'items', itemId
 	children = Page.state.get("?children")
 	Page.setTitle Form.smileyToEmoji(""+item.get("text"))

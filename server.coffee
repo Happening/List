@@ -8,7 +8,7 @@ exports.onUpgrade = !->
 	log "upgrading..."
 	# take all items
 	lastOrder = 0
-	Db.shared.forEach (item) !-> # This could include, 'maxId', 'comments', 'tiems' and 'completed'
+	Db.shared.forEach (item) !-> # This could include, 'maxId', 'comments', 'items' and 'completed'
 		# check if it is an item
 		a = 0
 		if item.key().toString().match ///^\d+$///i #is only numbers
@@ -30,8 +30,8 @@ exports.onUpgrade = !->
 			log "upped", newItem.text, lastOrder, a
 		else
 			log item.key(), "not an number"
-	# create 'completed'
-	Db.shared.set('completed', {})
+	# create 'completed' (but don't destroy if it already existed)
+	Db.shared.merge('completed', {})
 	# done
 	log "upgrading completed!"
 

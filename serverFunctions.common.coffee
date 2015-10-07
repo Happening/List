@@ -64,13 +64,13 @@ exports.remove = remove = (key, children, completed = false) !->
 
 exports.edit = (itemId, values, assigned, completed, children) !->
 	toggleCompleted = false
-	if completed
-		if values.completed isnt Db.shared.get('completed', itemId, 'completed') then toggleCompleted = true
+	if completed # in completed list or normal?
+		if values.completed isnt !!Db.shared.get('completed', itemId, 'completed') then toggleCompleted = true
 			# also, set completed.
 		Db.shared.merge('completed', itemId, values)
 		Db.shared.set('completed', itemId, 'assigned', assigned)
 	else
-		if values.completed isnt Db.shared.get('items', itemId, 'completed') then toggleCompleted = true
+		if values.completed isnt !!Db.shared.get('items', itemId, 'completed') then toggleCompleted = true
 		Db.shared.merge('items', itemId, values)
 		Db.shared.set('items', itemId, 'assigned', assigned)
 	if toggleCompleted
@@ -88,7 +88,6 @@ exports.hideCompleted = (key, children) !->
 	for c in children # mind you, the parent is also in this list
 		++cO
 		item = Db.shared.get('items', c)
-		log item
 		if item? # One does wonder...
 			item.cDepth = item.depth - depthOffset
 			item.cOrder = cO
@@ -99,8 +98,8 @@ exports.hideCompleted = (key, children) !->
 		if i.get('order') >= o
 			i.incr 'order', -(children.length)
 
-exports.complete = complete = (id, value, inList, children) !->
-	if !inList
+exports.complete = complete = (id, value, inCompletedList, children) !->
+	if !inCompletedList
 		if Db.shared.get('items', id)
 			Db.shared.set 'items', id, 'completed', !!value
 		# set children value
@@ -113,21 +112,24 @@ exports.complete = complete = (id, value, inList, children) !->
 		o = item.order
 		potentialDepth = 0
 		itemsLength = 0
-		Db.shared.forEach 'items', (i) !->
+		Db.shared.forEach 'items', (i) !-> # count
 			++itemsLength
+		o = Math.min(itemsLength+1,o)
+		Db.shared.forEach 'items', (i) !->
 			io = i.get('order')
 			if io == o-1
 				# this will be just above the stuff we're gonna move
 				potentialDepth = i.get('depth')+1
 			if io >= o
-				i.incr 'order', children.length
+				i.incr 'order', children.length||1
 		# move
 		# depthOffset should be cDepth minus depth of item above where I am to go...
 		depthOffset = item.depth-potentialDepth
-		for c in children # mind you, the parent is also in this list
+		for c,i in children # mind you, the parent is also in this list
 			item = Db.shared.get('completed', c)
 			item.depth -= Math.max(0, depthOffset)
-			item.order = Math.min(itemsLength+children.length, item.order)
+			item.order = o+i
+			# item.order = Math.min(itemsLength+children.length, item.order)
 			item.cDepth = null
 			item.cOrder = null
 			item.completed = null

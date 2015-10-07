@@ -50,7 +50,7 @@ exports.renderList = !->
 			@assigned = []
 			@completed = dbRef.peek('completed')
 			@children = []
-			@childrenKeys = []
+			@childrenKeys = [@key]
 			@treeLength = 1 # always yourself
 			@collapsed = Db.personal.peek 'collapsed', @key
 			@hidden = false
@@ -433,7 +433,6 @@ exports.renderList = !->
 			else
 				Server.sync 'complete', k, c, true, ch, !->
 					SF.complete k, c, true, ch
-					# Db.shared.set('items', k, 'completed', c)
 		setOffset: (offset) !->
 			@offsetO.set offset
 		getOffset: ->
@@ -655,24 +654,24 @@ exports.renderList = !->
 			item.setPlusOffset t
 		oldY = draggedElementY
 
-	repairOrder = !->
-		log "repairing order and depth"
-		itemsFixed = 0
+	repairOrder = !-> # this is a debug function, to detect inconsistencies in the order and depth. If this occurs fix it for the user at least. (Not that it should occur ofc)
+		holesFixed = 0
+		orderFixed = 0
+		depthFixed = 0
 		for item, i in items #fix holes
 			if !item?
-				++itemsFixed
+				++holesFixed
 				items.splice(i,1)
 		lastDepth = 0
 		for item, i in items
 			if items.order isnt i
-				++itemsFixed
+				++orderFixed
 				items.order = i # reset order
-			if item.depth > lastDepth+1 # reset depth
-				++itemsFixed
-				item.depth = lastDepth+1
+			if item.depth > lastDepth+1
+				++depthFixed
+				item.depth = lastDepth+1 # reset depth
 			lastDepth = item.depth
-		Server.send("fixItems", itemsFixed)
-
+		log "repaired #{holesFixed} holes, #{orderFixed} order errors and #{depthFixed} depth errors"
 	# End of item class stuff.
 
 	Dom.style
@@ -761,10 +760,10 @@ exports.renderList = !->
 			if redrawO.get()
 				log "Redraw observe, do children and collapse"
 				for i in items
-					continue if not i
+					continue unless i?
 					i.seekChildren()
 				for i in items
-					continue if not i
+					continue unless i?
 					i.collapse(false, false, true) # update collapse from Db.personal
 
 		Obs.observe !->
@@ -796,6 +795,15 @@ exports.renderList = !->
 
 
 		Db.shared.observeEach 'completed', (comp) !->
+			Obs.onClean !->
+				if !comp.peek('cOrder')? # filter onClean on existing items. this happens.
+					#remove item from the completedList
+					for compI, idx in completedItems
+						continue unless compI? # Who do empty slots turn up in an for loop?
+						if compI.key is parseInt(comp.key())
+							completedItems.splice(compI.cOrder-1,1)
+							break
+					cRedrawO.incr() # trigger seekCompletedChildren
 			return unless showCompletedO.get()
 			Dom.div !->
 				# Make a new item. It is also rendered here (called by its constructor)
@@ -809,7 +817,7 @@ exports.renderList = !->
 			if cRedrawO.get()
 				log "Redraw observe completed, do children"
 				for i in completedItems
-					continue if not i
+					continue unless i?
 					i.seekCompletedChildren()
 
 	Obs.observe !->

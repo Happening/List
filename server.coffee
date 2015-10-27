@@ -13,25 +13,32 @@ exports.onUpgrade = !->
 	# Db.shared.forEach (item) !-> # This could include, 'maxId', 'comments', 'items' and 'completed'
 	while walker>0
 		# check if it is an item
-		item = Db.shared.get walker
-		if item?
+		item = Db.shared.ref walker
+		if item.isHash()
 			# if item.key().toString().match ///^\d+$///i #is only numbers
 			# give them a order, depth and assigned
 			newItem = {}
 			newItem.order = item.get('order') || ++lastOrder
 			newItem.depth = item.get('depth')||0
 			a = item.get('assigned')||0
+			newItem.assigned = {a:true} if a
 			newItem.text = item.get('text')||""
 			newItem.by = item.get('by')||""
 			newItem.time = item.get('time')||0
 			newItem.notes = item.get('notes')||null
 			newItem.completed = item.get('completed')||null
-			# move it into 'items'
 			lastOrder = newItem.order
-			Db.shared.set('items', item.key(), newItem)
-			if a then Db.shared.set('items', item.key(), 'assigned', a, true)
+			# move it into 'items'
+			# if completed move to it
+			if not newItem.completed
+				Db.shared.set('items', item.key(), newItem)
+				# if a then Db.shared.set('items', item.key(), 'assigned', a, true)
+			else
+				newItem.cDepth = 0
+				newItem.cOrder = 0
+				Db.shared.set('completed', item.key(), newItem)
 			Db.shared.remove(item.key())
-			log "upped", walker, newItem.text, lastOrder, a
+			log "upgraded", walker, newItem.text, lastOrder, a
 		else
 			log "Item #{walker} is null"
 		walker--

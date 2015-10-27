@@ -63,7 +63,7 @@ exports.client_remove = (id, children, completed) !->
 		return if Plugin.userId() isnt Db.shared.get('completed', id, 'by') and !Plugin.userIsAdmin()
 	SF.remove(id, children, completed)
 
-exports.client_complete = (id, value, inList, children) !->
+exports.client_complete = (id, value, inList, children = []) !->
 	SF.complete id, value, inList, children
 
 exports.client_reorder = (id, pos, indent, length = 1) !->

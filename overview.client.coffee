@@ -129,19 +129,16 @@ exports.renderList = !->
 
 						#check box for desktop
 						if !mobile
-							Dom.div !->
-								Dom.style Box: 'center middle'
-								Dom.style _transform: "translate3d(0,0,0)" # fix for delayed view on webkit
-								# Form.vSep()
-								item.completed
-									# temp fix for problems arising from marking completed in edit item screen
-								Form.check
-									value: item.completed
-									inScope: !->
-										Dom.style margin: '0px 5px 0px -10px'
-									onChange: (v) !->
-										item.setCompleted(v)
-								# Form.vSep()
+							# Form.vSep()
+							item.completed
+								# temp fix for problems arising from marking completed in edit item screen
+							Form.check
+								value: item.completed
+								inScope: !->
+									Dom.style margin: '0px 5px 0px -10px', _transform: "translate3d(0,0,0)" # fix for delayed view on webkit
+								onChange: (v) !->
+									item.setCompleted(v)
+							# Form.vSep()
 
 						Dom.div !->
 							Dom.style
@@ -199,7 +196,7 @@ exports.renderList = !->
 							Dom.div !->
 								Dom.style
 									Box: 'middle'
-									marginLeft: '6px'
+									margin: '0 6px'
 									borderRadius: '3px'
 								if ad < 0
 									Dom.style border: '1px solid #bbb'
@@ -271,6 +268,7 @@ exports.renderList = !->
 							minHeight: '38px'
 							Box: 'middle'
 						Dom.div !->
+							Dom.style Box: 'middle'
 							save = !->
 								return if !addE.value().trim()
 								# d = if p is parseInt(item.key) then 1 else 0
@@ -281,7 +279,7 @@ exports.renderList = !->
 								Form.blur()
 								focusO.set(item.order+1) # focus on new 'add subitem'
 
-							addE = Form.input
+							addE = Form.text
 								simple: true
 								name: 'item' + item.key
 								text: tr("New subitem ...")
@@ -289,24 +287,24 @@ exports.renderList = !->
 									if v?.trim().length or item.editingItemO.peek() isnt 'focus'
 										item.editingItemO.set(!!v?.trim())
 								onReturn: save
+								rows: 1
 								inScope: !->
 									Dom.style
 										border: 'none'
 										fontSize: '100%'
 										padding: '0px 52px 0px 0px'
-										minHeight: '34px'
-										width:'100%'
+										minHeight: '1.2em'
+										width: '100%'
 							Obs.observe !->
-								if focusO.get() is item.order
+								if focusO.get() is item.order or item.editingItemO.get() is 'focus'
 									Obs.onTime 450, !->
-										focusO.set(0) #reset. causes weird stuff while dragging
+										focusO.set(0) # reset. causes weird stuff while dragging
 										addE.focus()
 
 							Obs.observe !->
 								Ui.button !->
 									Dom.style
 										visibility: (if item.editingItemO.get() is true then 'visible' else 'hidden')
-										position: 'absolute' # if you are wondering why we use absolute and no flex: Andoird 4.3 that's why.
 										right: '4px'
 									Dom.text tr("Add")
 								, save
@@ -393,7 +391,7 @@ exports.renderList = !->
 						_transform: "translateY(0px)"
 						marginBottom: "0px"
 						opacity: 1
-						zIndex = 0
+						zIndex: 0
 					@hidden = false
 			else # animate!
 				if height >= 0
@@ -426,13 +424,13 @@ exports.renderList = !->
 		setCompleted: (c) !->
 			k = @key
 			ch = @childrenKeys
-			if !@inCompletedList
-				Server.sync 'complete', k, c, false, !->
-					Db.shared.set('items', k, 'completed', c)
-				ch.setCompleted(c) for ch in @children # set to children
-			else
+			if @inCompletedList
 				Server.sync 'complete', k, c, true, ch, !->
 					SF.complete k, c, true, ch
+			else
+				Server.sync 'complete', k, c, false, null, !->
+					Db.shared.set('items', k, 'completed', c)
+				ch.setCompleted(c) for ch in @children # set to children
 		setOffset: (offset) !->
 			@offsetO.set offset
 		getOffset: ->
@@ -678,6 +676,7 @@ exports.renderList = !->
 		overflowX: 'hidden'
 		_userSelect: 'none'
 
+	empty = Obs.create(true)
 	editingItemO = Obs.create(false)
 	Dom.div !->
 		Dom.style
@@ -729,7 +728,6 @@ exports.renderList = !->
 
 
 		count = 0
-		empty = Obs.create(true)
 		redrawO = Obs.create(0)
 		cRedrawO = Obs.create(0)
 
@@ -770,9 +768,7 @@ exports.renderList = !->
 			if empty.get()
 				Dom.div !->
 					Dom.style
-						marginTop: '16px'
-						padding: '12px 6px'
-						textAlign: 'center'
+						padding: '14px'
 						color: '#bbb'
 					Dom.text tr("No items")
 
@@ -821,7 +817,7 @@ exports.renderList = !->
 					i.seekCompletedChildren()
 
 	Obs.observe !->
-		if !showCompletedO.get()
+		if !showCompletedO.get() and (!empty.get() or Db.shared.ref('completed').isHash())
 			Dom.div !->
 				Dom.style
 					Flex: 1
@@ -840,9 +836,11 @@ exports.renderList = !->
 			textAlign: 'center'
 			margin: '20px'
 			color: '#999'
-		Dom.text tr("Swipe an item left to complete it, and to the right to undo completion")
+		Dom.text tr("Swipe an item to (un)complete")
 
 
+	# perhaps it's better if this only happens when we actually exit the plugin?
+	# (not really possible right now though --Jelmer)
 	Obs.onClean !->
 		log "Leaving page. Hiding completed"
 		for item, i in items

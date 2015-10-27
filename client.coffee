@@ -143,11 +143,12 @@ renderItem = (itemId) !->
 								display: 'inline-block'
 								margin: '0 0 1px 0'
 				if emptyO.get()
-					Dom.h4 !->
+					Dom.div !->
 						Dom.style
-							fontSize: '120%'
-							padding: '8px 0px'
-						Dom.text tr("No one")
+							textAlign: 'left'
+							padding: '8px 4px'
+							color: '#aaa'
+						Dom.text tr("No one, tap to assign")
 				Dom.onTap !->
 					Modal.show tr("Assign member(s)"), !->
 						Dom.style width: '80%', maxWidth: '400px'

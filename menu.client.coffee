@@ -45,6 +45,8 @@ exports.renderMenu = (key, children, item) !->
 							size: 22
 							style: {marginRight: '2px'}
 					Dom.onTap !->
+						if item.collapsed
+							item.collapse(false, true)
 						item.editingItemO.set('focus')
 						item.setShowPlus(key)
 						# Modal.prompt tr("Add subitem")

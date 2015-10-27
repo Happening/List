@@ -75,8 +75,10 @@ exports.edit = (itemId, values, assigned, completed, children) !->
 		Db.shared.set('items', itemId, 'assigned', assigned)
 	if toggleCompleted
 		complete itemId, !completed, completed, children
+		# hide the item immediately
+		hideCompleted itemId, children
 
-exports.hideCompleted = (key, children) !->
+exports.hideCompleted = hideCompleted = (key, children) !->
 	o = Db.shared.get('items', key, 'order')
 	depthOffset = Db.shared.get('items', key, 'depth')
 	# reorder completed list in advanced

@@ -61,6 +61,7 @@ exports.renderList = !->
 			@editingItemO = Obs.create(false)
 			@pCompletedO = Obs.create(false)
 			@plusElement = null
+			@plusChild = null # which child would bear the add subitem
 			@contentElement = @element
 			item = this
 
@@ -140,15 +141,11 @@ exports.renderList = !->
 									item.setCompleted(v)
 							# Form.vSep()
 
+						# The content
 						Dom.div !->
 							Dom.style
 								Flex: 1
 								color: (if Event.isNew(item.time) then '#5b0' else 'inherit')
-								# overflow: 'hidden'
-								# whiteSpace: 'nowrap'
-								# textOverflow: 'ellipsis'
-								# width: '0px'
-							# Dom.userText item.order + " - " + item.text
 							Dom.userText item.text
 							if notes = item.notes
 								Dom.div !->
@@ -160,8 +157,11 @@ exports.renderList = !->
 										overflow: 'hidden'
 										textOverflow: 'ellipsis'
 									Dom.text notes
+						# Event bubble
 						Dom.div !->
-							Event.renderBubble [item.key]
+							Event.renderBubble [item.key], style:
+								margin: '2px 0px'
+						# Assigned
 						Dom.div !->
 							Dom.style
 								marginRight: '-4px'
@@ -189,20 +189,42 @@ exports.renderList = !->
 							Page.nav {0:item.key, "?children": item.childrenKeys, "?completed": item.completed}
 						if mobile then item.dragToComplete itemDE
 
+					# collapse
 					Obs.observe !->
 						ad = item.arrowO.get()
 						if ad isnt 0
-
 							Dom.div !->
 								Dom.style
 									Box: 'middle'
 									margin: '0 6px'
 									borderRadius: '3px'
+									paddingLeft: '2px'
 								if ad < 0
+									# calc hidden events and new items
+									gray = 0
+									green = 0
+									countEvent = (item, initial = false) !->
+										unless initial
+											raw = Event.getRaw [item.key]
+											gray += raw[5]
+											green += raw[3]
+											green += if Event.isNew [item.time] then 1 else 0
+										for c in item.children
+											countEvent c
+									countEvent item, true
+									# render bubbles
+									if (green+gray)
+										Dom.div !->
+											Dom.addClass 'event-bubble-inner'
+											Dom.style
+												background: if green>0 then '#5b0' else '#666'
+												margin: '2px'
+											Dom.text (green + gray)
+									# Rest of collapse box
 									Dom.style border: '1px solid #bbb'
 									Dom.div !->
 										Dom.style
-											paddingLeft: '6px'
+											paddingLeft: '4px'
 											fontSize: '75%'
 											fontWeight: 'bold'
 											color: '#bbb'
@@ -218,8 +240,6 @@ exports.renderList = !->
 					return if item.inCompletedList
 
 					# Overflow menu
-					# Form.vSep()
-					# Dom.last().style margin: '0px'
 					Dom.div !->
 						Dom.style
 							padding: '8px'
@@ -231,7 +251,6 @@ exports.renderList = !->
 							size: 16
 						Dom.onTap !->
 							Menu.renderMenu(item.key, item.childrenKeys, item)
-				# Form.sep()
 
 				# Rearrange icon
 				Dom.div !->
@@ -338,6 +357,7 @@ exports.renderList = !->
 					# and remove + from myself
 					@setShowPlus -1
 					@children[@children.length-1].setShowPlus @key
+					@plusChild = @children[@children.length-1]
 
 			@arrowO.set (if @treeLength > 1 then 1 else 0)
 

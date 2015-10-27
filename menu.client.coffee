@@ -46,15 +46,14 @@ exports.renderMenu = (key, children, item) !->
 							style: {marginRight: '2px'}
 					Dom.onTap !->
 						if item.collapsed
-							item.collapse(false, true)
-						item.editingItemO.set('focus')
-						item.setShowPlus(key)
-						# Modal.prompt tr("Add subitem")
-						# , (value) !->
-						# 	Server.sync 'add', value, key, !->
-						# 		SF.add(value, key, Plugin.userId())
+							item.collapse(false, true) # expand item
+						if item.plusChild?
+							item.plusChild.editingItemO.set('focus')
+							item.plusChild.setShowPlus(key)
+						else
+							item.editingItemO.set('focus')
+							item.setShowPlus(key)
 						Modal.remove()
-
 
 				if Plugin.userId() is Db.shared.peek('items', key, 'by') or Plugin.userIsAdmin()
 					Ui.item !->

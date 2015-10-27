@@ -8,10 +8,14 @@ exports.onUpgrade = !->
 	log "upgrading..."
 	# take all items
 	lastOrder = 0
-	Db.shared.forEach (item) !-> # This could include, 'maxId', 'comments', 'items' and 'completed'
+	walker = Db.shared.get('maxId') || 0
+	log "max Id:", walker
+	# Db.shared.forEach (item) !-> # This could include, 'maxId', 'comments', 'items' and 'completed'
+	while walker>0
 		# check if it is an item
-		a = 0
-		if item.key().toString().match ///^\d+$///i #is only numbers
+		item = Db.shared.get walker
+		if item?
+			# if item.key().toString().match ///^\d+$///i #is only numbers
 			# give them a order, depth and assigned
 			newItem = {}
 			newItem.order = item.get('order') || ++lastOrder
@@ -27,9 +31,10 @@ exports.onUpgrade = !->
 			Db.shared.set('items', item.key(), newItem)
 			if a then Db.shared.set('items', item.key(), 'assigned', a, true)
 			Db.shared.remove(item.key())
-			log "upped", newItem.text, lastOrder, a
+			log "upped", walker, newItem.text, lastOrder, a
 		else
-			log item.key(), "not an number"
+			log "Item #{walker} is null"
+		walker--
 	# create 'completed' (but don't destroy if it already existed)
 	Db.shared.merge('completed', {})
 	# done

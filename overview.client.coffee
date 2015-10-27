@@ -314,6 +314,7 @@ exports.renderList = !->
 										padding: '0px 52px 0px 0px'
 										minHeight: '1.2em'
 										width: '100%'
+										padding: '0px'
 							Obs.observe !->
 								if focusO.get() is item.order or item.editingItemO.get() is 'focus'
 									Obs.onTime 450, !->
@@ -740,6 +741,7 @@ exports.renderList = !->
 						display: 'block'
 						border: 'none'
 						fontSize: '21px'
+						padding: '0px'
 			Obs.observe !->
 				Ui.button !->
 					Dom.style visibility: (if editingItemO.get() then 'visible' else 'hidden')

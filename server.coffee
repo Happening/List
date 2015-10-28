@@ -7,19 +7,28 @@ SF = require 'serverFunctions'
 exports.onUpgrade = !->
 	log "upgrading..."
 	# take all items
-	lastOrder = 0
 	walker = Db.shared.get('maxId') || 0
 	log "max Id:", walker
-	# Db.shared.forEach (item) !-> # This could include, 'maxId', 'comments', 'items' and 'completed'
+
+	# count completed
+	completedcnt = 0
+	for i in [1..walker]
+		Db.shared.get i
+		completedcnt++ if i.completed
+
+	lastOrderIncompleted = 0
+	lastOrderCompleted = completedcnt
 	while walker>0
 		# check if it is an item
 		item = Db.shared.ref walker
 		if item.isHash()
-			# if item.key().toString().match ///^\d+$///i #is only numbers
 			# give them a order, depth and assigned
 			newItem = {}
-			newItem.order = item.get('order') || ++lastOrder
-			newItem.depth = item.get('depth')||0
+			if item.get('completed')
+				newItem.order = ++lastOrderCompleted
+			else
+				newItem.order = ++lastOrderIncompleted
+			newItem.depth = 0
 			a = item.get('assigned')||0
 			newItem.assigned = {a:true} if a
 			newItem.text = item.get('text')||""
@@ -27,16 +36,8 @@ exports.onUpgrade = !->
 			newItem.time = item.get('time')||0
 			newItem.notes = item.get('notes')||null
 			newItem.completed = item.get('completed')||null
-			lastOrder = newItem.order
 			# move it into 'items'
-			# if completed move to it
-			if not newItem.completed
-				Db.shared.set('items', item.key(), newItem)
-				# if a then Db.shared.set('items', item.key(), 'assigned', a, true)
-			else
-				newItem.cDepth = 0
-				newItem.cOrder = 0
-				Db.shared.set('completed', item.key(), newItem)
+			Db.shared.set('items', item.key(), newItem)
 			Db.shared.remove(item.key())
 			log "upgraded", walker, newItem.text, lastOrder, a
 		else

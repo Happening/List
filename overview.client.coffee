@@ -839,7 +839,7 @@ exports.renderList = !->
 					i.seekCompletedChildren()
 
 	Obs.observe !->
-		if !showCompletedO.get() and (!empty.get() or Db.shared.ref('completed').isHash())
+		if !showCompletedO.get() and Db.shared.ref('completed').isHash()
 			Dom.div !->
 				Dom.style
 					Flex: 1

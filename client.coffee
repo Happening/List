@@ -25,7 +25,12 @@ exports.render = !->
 
 renderItem = (itemId) !->
 	completed = Page.state.get("?completed")||false
-	item = if completed then Db.shared.ref 'completed', itemId else Db.shared.ref 'items', itemId
+	item = if completed then Db.shared.ref('completed', itemId) else Db.shared.ref('items', itemId)
+	if !item.isHash()
+		Modal.show tr("Aborting edit"), tr("Another member modified the item in an incompatible way"), !->
+			Page.back()
+		return
+
 	children = Page.state.get("?children")
 	Page.setTitle Form.smileyToEmoji(""+item.get("text"))
 	Event.showStar item.get('text')

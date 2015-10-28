@@ -11,13 +11,14 @@ exports.onUpgrade = !->
 	log "max Id:", walker
 
 	# count completed
-	completedcnt = 0
+	incompletedCnt = 0
 	for i in [1..walker]
-		Db.shared.get i
-		completedcnt++ if i.completed
+		item = Db.shared.get i
+		continue if !item? or item.completed
+		incompletedCnt++
 
 	lastOrderIncompleted = 0
-	lastOrderCompleted = completedcnt
+	lastOrderCompleted = incompletedCnt
 	while walker>0
 		# check if it is an item
 		item = Db.shared.ref walker
@@ -29,8 +30,8 @@ exports.onUpgrade = !->
 			else
 				newItem.order = ++lastOrderIncompleted
 			newItem.depth = 0
-			a = item.get('assigned')||0
-			newItem.assigned = {a:true} if a
+			if a = (item.get('assigned')||0)
+				(newItem.assigned = {})[a] = true
 			newItem.text = item.get('text')||""
 			newItem.by = item.get('by')||""
 			newItem.time = item.get('time')||0
@@ -39,12 +40,10 @@ exports.onUpgrade = !->
 			# move it into 'items'
 			Db.shared.set('items', item.key(), newItem)
 			Db.shared.remove(item.key())
-			log "upgraded", walker, newItem.text, lastOrder, a
+			log "upgraded", walker, lastOrderIncompleted, lastOrderCompleted, newItem.text, a
 		else
 			log "Item #{walker} is null"
 		walker--
-	# create 'completed' (but don't destroy if it already existed)
-	Db.shared.merge('completed', {})
 	# done
 	log "upgrading completed!"
 

@@ -5,6 +5,9 @@ SF = require 'serverFunctions'
 
 # Onupgrade, move all items to 'items' and give them an order and depth of 0
 exports.onUpgrade = !->
+	return # done already!
+
+
 	log "upgrading..."
 	# take all items
 	walker = Db.shared.get('maxId') || 0

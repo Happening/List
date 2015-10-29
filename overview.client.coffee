@@ -339,6 +339,7 @@ exports.renderList = !->
 					i = items[j]
 					if !i?
 						repairOrder()
+						return
 					if i.depth is @depth+1 # No Luke, I am your father
 						if i.getShowPlus() >= 0 then i.setShowPlus -1 # remove subitem thing, so be sure
 						@children.push(i) # This makes a pointer right? Right?
@@ -865,8 +866,10 @@ exports.renderList = !->
 	# (not really possible right now though --Jelmer)
 	Obs.onClean !->
 		log "Leaving page. Hiding completed"
+		cnt = 0
 		for item, i in items
 			if item.completed and not item.pCompletedO.peek()
+				break if cnt++ > 32 # don't batch more than 32 rpcs
 				Server.sync 'hideCompleted', item.key, item.childrenKeys, !->
 					SF.hideCompleted(item.key, item.childrenKeys)
 

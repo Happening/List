@@ -1,12 +1,11 @@
 Db = require 'db'
-Plugin = require 'plugin'
+App = require 'app'
 Event = require 'event'
 SF = require 'serverFunctions'
 
 # Onupgrade, move all items to 'items' and give them an order and depth of 0
 exports.onUpgrade = !->
 	return # done already!
-
 
 	log "upgrading..."
 	# take all items
@@ -51,18 +50,18 @@ exports.onUpgrade = !->
 	log "upgrading completed!"
 
 exports.client_add = add = (text, order, depth, parent) !->
-	SF.add(text, order, depth, Plugin.userId())
+	SF.add(text, order, depth, App.userId())
 
-	name = Plugin.userName()
+	name = App.userName()
 	if parent
 		parent = Db.shared.get('items', parent, 'text')
 		Event.create
 			text: "#{name} added an item to #{parent}: #{text}"
-			sender: Plugin.userId()
+			sender: App.userId()
 	else
 		Event.create
 			text: "#{name} added an item: #{text}"
-			sender: Plugin.userId()
+			sender: App.userId()
 
 exports.client_edit = (itemId, values, assigned, completed, children) !->
 	SF.edit itemId, values, assigned, completed, children
@@ -73,9 +72,9 @@ exports.client_setText = (id, text) !->
 exports.client_remove = (id, children, completed) !->
 	# first check authentication
 	if !completed
-		return if Plugin.userId() isnt Db.shared.get('items', id, 'by') and !Plugin.userIsAdmin()
+		return if App.userId() isnt Db.shared.get('items', id, 'by') and !App.userIsAdmin()
 	else
-		return if Plugin.userId() isnt Db.shared.get('completed', id, 'by') and !Plugin.userIsAdmin()
+		return if App.userId() isnt Db.shared.get('completed', id, 'by') and !App.userIsAdmin()
 	SF.remove(id, children, completed)
 
 exports.client_complete = (id, value, inList, children = []) !->
@@ -91,10 +90,10 @@ exports.client_assign = assign = (id, user) !->
 		Db.shared.set('items', id, 'assigned', user, true)
 
 exports.client_collapse = (key, value) !->
-	Db.personal(Plugin.userId()).set 'collapsed', key, value
+	Db.personal(App.userId()).set 'collapsed', key, value
 
 exports.client_hideCompleted = (key, ch) !->
 	SF.hideCompleted(key, ch)
 
 exports.fixItems = (itemsFixed) !->
-	log "WARNING: Client", Plugin.userId(), "had to fix", itemsFixed, "items!"
+	log "WARNING: Client", App.userId(), "had to fix", itemsFixed, "items!"

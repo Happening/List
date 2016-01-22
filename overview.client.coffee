@@ -1,3 +1,4 @@
+Comments = require 'comments'
 Db = require 'db'
 Dom = require 'dom'
 Event = require 'event'
@@ -6,7 +7,7 @@ Icon = require 'icon'
 Modal = require 'modal'
 Obs = require 'obs'
 Page = require 'page'
-Plugin = require 'plugin'
+App = require 'app'
 Server = require 'server'
 Ui = require 'ui'
 {tr} = require 'i18n'
@@ -18,14 +19,17 @@ swipeToCompleteRespondTreshold = 5 # in pixels applied on Y axis!
 dragScrollTreshold = 60 # in pixels
 
 exports.renderList = !->
-	mobile = Plugin.agent().ios or Plugin.agent().android
+	Page.setCardBackground()
+	Comments.enable()
+
+	mobile = App.agent().ios or App.agent().android
 	items = []
 	completedItems = []
 	oldY = 0
 	contentE = Dom.get()
 	scrollDelta = 0
 	startScrollDelta = 0
-	scrolling = 0
+	scrolling = Obs.create 0
 	dragDirection = 0 # 1 for x, -1 for y
 	dragPosition = -1
 	draggedElement = null
@@ -112,7 +116,7 @@ exports.renderList = !->
 						Flex: 1
 						Box: 'left middle'
 						# padding: "0 0 0 #{item.depth*15}" # reactive
-						margin: if !item.inCompletedList then "2 0 2 #{item.depth*15}" else "2 0 2 #{item.cDepth*15}"# reactive
+						margin: if !item.inCompletedList then "2 0 2 #{item.depth*15}" else "2 8 2 #{item.cDepth*15}"# reactive
 						backgroundColor: '#fff'
 						borderRadius: '2px'
 
@@ -130,16 +134,14 @@ exports.renderList = !->
 
 						#check box for desktop
 						if !mobile
-							# Form.vSep()
-							item.completed
-								# temp fix for problems arising from marking completed in edit item screen
 							Form.check
 								value: item.completed
-								inScope: !->
-									Dom.style margin: '0px 5px 0px -10px', _transform: "translate3d(0,0,0)" # fix for delayed view on webkit
+								style:
+									_transform: "translate3d(0,0,0)"
+									padding: '0px' # fix for delayed view on webkit
+									margin: "4px 8px 4px 4px"
 								onChange: (v) !->
 									item.setCompleted(v)
-							# Form.vSep()
 
 						# The content
 						Dom.div !->
@@ -170,7 +172,7 @@ exports.renderList = !->
 							if !assigned? or assigned.length is 0
 								# Do nothing
 							else if assigned.length is 1
-								Ui.avatar Plugin.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
+								Ui.avatar App.userAvatar(assigned[0]), size: 30, style: margin: '0 0 0 8px'
 							else if assigned.length > 1
 								Ui.avatar '#bbb', size: 30, style: margin: '0 0 0 8px'
 								Dom.div !->
@@ -182,11 +184,11 @@ exports.renderList = !->
 										fontWeight: 'bold'
 										width: '32px'
 										textAlign: 'center'
-										color: '#fff'
+										color: '#000'
 									Dom.text assigned.length
 						# if !item.inCompletedList
 						Dom.onTap !->
-							Page.nav {0:item.key, "?children": item.childrenKeys, "?completed": item.completed}
+							Page.nav {0:item.key, "?children": item.childrenKeys.join(',')}
 						if mobile then item.dragToComplete itemDE
 
 					# collapse
@@ -201,25 +203,18 @@ exports.renderList = !->
 									paddingLeft: '2px'
 								if ad < 0
 									# calc hidden events and new items
-									gray = 0
-									green = 0
+									childEvents = 0
 									countEvent = (item, initial = false) !->
 										unless initial
-											raw = Event.getRaw [item.key]
-											gray += raw[5]
-											green += raw[3]
-											green += if Event.isNew [item.time] then 1 else 0
+											childEvents += Event.getUnread item.key
+										log "countEvents", childEvents
 										for c in item.children
 											countEvent c
 									countEvent item, true
-									# render bubbles
-									if (green+gray)
-										Dom.div !->
-											Dom.addClass 'event-bubble-inner'
-											Dom.style
-												background: if green>0 then '#5b0' else '#666'
-												margin: '2px'
-											Dom.text (green + gray)
+									if childEvents
+										Event.renderBubble
+											count: childEvents
+											style: margin: '1px 0px 0px'
 									# Rest of collapse box
 									Dom.style border: '1px solid #bbb'
 									Dom.div !->
@@ -257,7 +252,7 @@ exports.renderList = !->
 					if !item.inCompletedList
 						Dom.style
 							padding: "8px"
-							marginRight: "-8px"
+							# marginRight: "-8px"
 						Icon.render
 							data: 'reorder'
 							color: '#bbb'
@@ -280,7 +275,7 @@ exports.renderList = !->
 							_transform: "translateY(#{offset + 'px'})"
 							padding: '4px 4px 4px 8px'
 							# height: '50px'
-							margin: "2 32 2 #{(item.depth+d)*15 + desktopOffset}" # reactive.
+							margin: "2 40 2 #{(item.depth+d)*15 + desktopOffset}" # reactive.
 							display: 'block'
 							backgroundColor: '#fff'
 							borderRadius: '2px'
@@ -292,28 +287,25 @@ exports.renderList = !->
 								return if !addE.value().trim()
 								# d = if p is parseInt(item.key) then 1 else 0
 								Server.sync 'add', addE.value().trim(), item.order+1, item.depth + d, p, !->
-									SF.add(addE.value().trim(), item.order+1, item.depth + d, Plugin.userId())
+									SF.add(addE.value().trim(), item.order+1, item.depth + d, App.userId())
 								addE.value ""
 								item.editingItemO.set(false)
 								Form.blur()
 								focusO.set(item.order+1) # focus on new 'add subitem'
 
-							addE = Form.text
-								simple: true
+							addE = Form.simpleText
 								name: 'item' + item.key
 								text: tr("New subitem ...")
 								onChange: (v) !->
 									if v?.trim().length or item.editingItemO.peek() isnt 'focus'
 										item.editingItemO.set(!!v?.trim())
 								onReturn: save
-								rows: 1
-								inScope: !->
-									Dom.style
-										border: 'none'
-										fontSize: '100%'
-										padding: '0px 52px 0px 0px'
-										minHeight: '1.2em'
-										width: '100%'
+								style:
+									border: 'none'
+									fontSize: '100%'
+									padding: '0px 52px 0px 0px'
+									minHeight: '1.2em'
+									width: '100%'
 							Obs.observe !->
 								if focusO.get() is item.order or item.editingItemO.get() is 'focus'
 									Obs.onTime 450, !->
@@ -498,14 +490,16 @@ exports.renderList = !->
 				return dragDirection < 1 # do default
 			, element
 
-	log "Make scrolling interval"
-	Obs.interval 25, !->
-		return unless scrolling
-		scrollDelta = Math.min(contentE.height()-(Page.height()-100), Math.max(0, scrollDelta + scrolling * 10))
-		Page.scroll(scrollDelta, false)
-		if draggedElement?
-			draggedElementY = draggedElement.element.getOffsetXY().y + draggedY + (draggedElement.element.height()/2) + scrollDelta - startScrollDelta
-			onDrag()
+	Obs.observe !->
+		scr = scrolling.get()
+		if scr isnt 0
+			Obs.interval 25, !->
+				# return unless scrolling
+				scrollDelta = Math.min(contentE.height()-(Page.height()), Math.max(0, scrollDelta + scr * 10))
+				Page.scroll(scrollDelta, false)
+				if draggedElement?
+					draggedElementY = draggedElement.element.getOffsetXY().y + draggedY + (draggedElement.element.height()/2) + scrollDelta - startScrollDelta
+					onDrag()
 
 
 	dragToReorder = (item) !->
@@ -546,10 +540,10 @@ exports.renderList = !->
 				# scroll
 				ph = Page.height()-100
 				if (touches[0].y+touches[0].yo-50) + dragScrollTreshold > ph
-					scrolling = 1
+					scrolling.set 1
 				else if (touches[0].y+touches[0].yo-50) < dragScrollTreshold
-					scrolling = -1
-				else scrolling = 0
+					scrolling.set -1
+				else scrolling.set 0
 
 				if touches[0].op&4 # touch is stopped
 					element.removeClass "dragging"
@@ -564,7 +558,7 @@ exports.renderList = !->
 						element.style _transform: "translateY(0)"
 					# reset lots of things
 					draggedElement = null
-					scrolling = 0
+					scrolling.set 0
 					dragPosition = -1
 					item.collapse(false, false, false, 1)
 					item.unHidePlus()
@@ -700,14 +694,7 @@ exports.renderList = !->
 	empty = Obs.create(true)
 	editingItemO = Obs.create(false)
 	Dom.div !->
-		Dom.style
-			margin: '-8px -8px 0px'
-			# backgroundColor: '#fff'
-			# borderBottom: '1px solid #aaa'
-			# borderRadius: '0px'
-			# _boxShadow: "0 1px 2px rgba(0,0,0,.1)"
-			padding: '8px'
-
+		Dom.style marginRight: '0px'
 		# Top entry: adding an item
 		Ui.item !->
 			Dom.style
@@ -715,36 +702,36 @@ exports.renderList = !->
 				# paddingBottom: '0px'
 				backgroundColor: '#fff'
 				borderRadius: '2px'
-				margin: '0 32px 1px 0'
-			save = !->
-				return if !addE.value().trim()
+				margin: '0 40px 1px 0'
+			save = ->
+				return true if !addE.value().trim()
 				Db.local.set('new', (Db.shared.peek('maxId')|0)+1)
 				Server.sync 'add', addE.value().trim(), 1, 0, !->
-					SF.add(addE.value().trim(), 1, 0, Plugin.userId())
+					SF.add(addE.value().trim(), 1, 0, App.userId())
 					# Sigh, and do order stuff...
 				addE.value ""
-				addE.style {height: '26px'} # reset height
+				# addE.style {height: '26px'} # reset height
 				editingItemO.set(false)
 				addE.focus() # Refocus on this
+				true # kill
 
-			addE = Form.text
-				simple: true
-				rows: 1
+			addE = Form.simpleText
 				name: 'item'
 				text: tr("New item ...")
 				onChange: (v) !->
 					editingItemO.set(!!v?.trim())
 				onReturn: save
-				inScope: !->
-					Dom.style
-						Flex: 1
-						display: 'block'
-						border: 'none'
-						fontSize: '21px'
-						padding: '0px'
+				style:
+					Flex: 1
+					display: 'block'
+					border: 'none'
+					fontSize: '21px'
+					padding: '0px'
+					minHeight: '28px'
 			Obs.observe !->
 				Ui.button !->
 					Dom.style visibility: (if editingItemO.get() then 'visible' else 'hidden')
+					Dom.style marginLeft: '8px'
 					Dom.text tr("Add")
 				, save
 
@@ -837,19 +824,35 @@ exports.renderList = !->
 				for i in completedItems
 					continue unless i?
 					i.seekCompletedChildren()
+	# calc hidden events
+	hiddenEvents = Obs.create({})
+	Db.shared.observeEach 'completed', (comp) !->
+		hiddenEvents.set comp.key(), (Event.getUnread comp.key())
+		Obs.onClean !->
+			hiddenEvents.remove comp.key()
 
 	Obs.observe !->
 		if !showCompletedO.get() and Db.shared.ref('completed').isHash()
 			Dom.div !->
 				Dom.style
-					Flex: 1
+					Box: 'middle'
 					padding: '8px'
-					margin: '4px 32px 4px 0'
-					textAlign: 'center'
+					margin: '4px 40px 4px 12px'
 					borderRadius: '2px'
 					border: '1px solid #ccc'
-					color: Plugin.colors().highlight
-				Dom.text "Show completed"
+				Dom.div !->
+					Dom.style
+						Flex: 1
+						textAlign: 'center'
+						color: App.colors().highlight
+					Dom.text "Show completed"
+
+				nrOfEvents = 0
+				for k,v of hiddenEvents.get()
+					nrOfEvents += v
+				Event.renderBubble
+					count: nrOfEvents
+
 				Dom.onTap !->
 					showCompletedO.set true
 
@@ -859,7 +862,6 @@ exports.renderList = !->
 			margin: '20px'
 			color: '#999'
 		Dom.text tr("Swipe an item to (un)complete")
-
 
 	# perhaps it's better if this only happens when we actually exit the plugin?
 	# (not really possible right now though --Jelmer)
@@ -881,5 +883,7 @@ Dom.css
 		_backfaceVisibility: 'hidden'
 	".sortItem":
 		_backfaceVisibility: 'hidden'
-		transition_: 'transform 0.4s ease-out, opacity 0.4s, marginBottom 0.4s ease-out'
-		WebkitTransition_: 'transform 0.4s ease-out, opacity 0.4s, marginBottom 0.4s ease-out'
+		transition_: 'transform 0.4s ease-out, opacity 0.4s, margin-bottom 0.4s ease-out'
+		WebkitTransition_: 'transform 0.4s ease-out, opacity 0.4s, margin-bottom 0.4s ease-out'
+	".sortItem .form-row":
+		padding: '0px'
